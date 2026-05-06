@@ -2494,10 +2494,28 @@ async function syncFromClassroom() {
       if (subData?.studentSubmissions) {
         const gradeUpdates = subData.studentSubmissions.map(sub => {
           const studentEmail = googleStudentsMap[sub.userId];
-          // ค้นหาในตัวแปร students ของเรา (ต้องโหลดมาก่อนแล้วใน initAdmin)
-          const targetStudent = students.find(s => s.email === studentEmail);
-
+          // ค้นหานักเรียนจากอีเมล
+          let targetStudent = students.find(s => s.email === studentEmail);
           if (!targetStudent) return null;
+
+          let status = 'not_sent'; 
+          if (sub.state === 'TURNED_IN') status = 'waiting';
+          if (sub.state === 'RETURNED') status = 'checked';
+
+          return {
+            student_id: targetStudent.id,
+            assignment_id: asgn.id,
+            score: sub.assignedGrade || 0,
+            max_score: work.maxPoints || 10,
+            status: status
+          };
+        }).filter(g => g !== null);
+
+        if (gradeUpdates.length > 0) {
+          // บันทึกลงตาราง grades
+          await _sb.from('grades').upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
+        }
+      }
 
           let status = 'not_sent'; 
           
