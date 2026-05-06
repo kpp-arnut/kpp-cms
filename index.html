@@ -1920,185 +1920,409 @@ async function delAssignment(id) {
 }
 
 // ─── GOOGLE CLASSROOM SYNC ─────────────────────────────────
+// ── Helper: Fetch + จัดการ error อัตโนมัติ ──
+async function gcFetch(url) {
+  const resp = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+  });
+  if (resp.status === 401) {
+    googleAccessToken = null;
+    throw new Error('Token หมดอายุ กรุณากดซิงค์อีกครั้ง');
+  }
+  if (resp.status === 403) {
+    throw new Error('ไม่มีสิทธิ์เข้าถึง กรุณาอนุญาต Permission ใหม่');
+  }
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${errBody.substring(0, 120)}`);
+  }
+  return resp.json();
+}
+
+// ── ตรวจจับหมวดหมู่จากชื่องาน ──
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
-  if (t.includes('ปลายภาค') || t.includes('fin') || t.includes('สอบปลาย')) return 'ปลายภาค';
-  if (t.includes('กลางภาค') || t.includes('mid') || t.includes('สอบกลาง')) return 'กลางภาค';
-  if (t.includes('หลังกลางภาค') || t.includes('aft')) return 'หลังกลางภาค';
+  if (t.includes('ปลายภาค') || t.includes('final') || t.includes('สอบปลาย')) return 'ปลายภาค';
+  if (t.includes('กลางภาค') || t.includes('midterm') || t.includes('mid') || t.includes('สอบกลาง')) return 'กลางภาค';
+  if (t.includes('หลังกลางภาค') || t.includes('after')) return 'หลังกลางภาค';
   return 'ก่อนกลางภาค';
 }
 
-function initGoogleAuth(callback) {
+// ── Modal เลือกห้อง/วิชา ก่อนซิงค์ ──
+function syncFromClassroom() {
+  // สร้าง modal แบบ dynamic
+  const existing = $('m-gc-sync');
+  if (existing) existing.remove();
+
+  const rooms = [...new Set(students.map(s => s.classroom))].sort();
+  const subjs = [...new Set(assignments.map(a => a.subject))].sort();
+
+  const el = document.createElement('div');
+  el.className = 'modal-overlay open';
+  el.id = 'm-gc-sync';
+  el.innerHTML = `
+    <div class="modal" style="max-width:500px">
+      <div class="modal-hd">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png"
+          style="height:24px;vertical-align:middle;margin-right:8px">
+        ซิงค์จาก Google Classroom
+        <button class="modal-close" onclick="document.getElementById('m-gc-sync').remove()">✕</button>
+      </div>
+
+      <div class="mb-3">
+        <label>ห้องเรียนในระบบ (ที่จะรับข้อมูล) *</label>
+        <select id="gc-room">
+          <option value="">— เลือกห้อง —</option>
+          ${rooms.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="mb-4">
+        <label>วิชา (ที่จะบันทึกงานลงใน) *</label>
+        <select id="gc-subj" onchange="
+          document.getElementById('gc-subj-new').style.display=
+          this.value==='__new__'?'block':'none'">
+          <option value="">— เลือกวิชา —</option>
+          ${subjs.map(s => `<option value="${s}">${s}</option>`).join('')}
+          <option value="__new__">✏️ พิมพ์วิชาใหม่...</option>
+        </select>
+        <input type="text" id="gc-subj-new"
+          placeholder="พิมพ์ชื่อวิชา..."
+          style="margin-top:8px;display:none">
+      </div>
+
+      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+                  border-radius:10px;padding:12px;font-size:0.83rem;margin-bottom:16px">
+        <strong style="color:var(--amber)">⚠️ เงื่อนไขสำคัญ</strong>
+        <ul style="margin:6px 0 0 16px;color:var(--text-dim);line-height:2">
+          <li>ชื่อ Course ใน Google Classroom ต้องมีชื่อห้องอยู่ เช่น <em>"ชีววิทยา ม.5/1"</em></li>
+          <li>อีเมลนักเรียนในระบบต้องตรงกับ Google Account ของนักเรียน</li>
+          <li>คะแนนจะดึงมาเฉพาะงานที่ครู <strong>Return</strong> กลับแล้วเท่านั้น</li>
+        </ul>
+      </div>
+
+      <div id="gc-log" style="display:none;background:#0f172a;border:1px solid var(--border-glass);
+        border-radius:10px;padding:14px;font-family:monospace;font-size:0.78rem;
+        color:#7dd3fc;white-space:pre-wrap;max-height:220px;overflow-y:auto;
+        margin-bottom:16px"></div>
+
+      <div class="flex gap-3">
+        <button class="btn btn-primary flex-1 btn-lg" id="gc-start-btn"
+          onclick="startGcSync()">🚀 เชื่อมต่อ Google &amp; เริ่มซิงค์</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('m-gc-sync').remove()">ยกเลิก</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function gcLog(msg, type) {
+  const el = $('gc-log');
+  if (!el) return;
+  el.style.display = 'block';
+  const colors = { ok:'#4ade80', err:'#f87171', info:'#7dd3fc', warn:'#fbbf24' };
+  const icons  = { ok:'✅', err:'❌', info:'→', warn:'⚠️' };
+  el.innerHTML += `<span style="color:${colors[type]||'#cbd5e1'}">${icons[type]||'•'} ${msg}\n</span>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function startGcSync() {
+  // ── ตรวจสอบ input ──
+  const room = $('gc-room').value;
+  const subjSel = $('gc-subj').value;
+  const subjNew = ($('gc-subj-new').value || '').trim();
+  const subj = subjSel === '__new__' ? subjNew : subjSel;
+
+  if (!room) { showToast('กรุณาเลือกห้องเรียน', 'error'); return; }
+  if (!subj) { showToast('กรุณาเลือกหรือพิมพ์วิชา', 'error'); return; }
+
+  // ล็อกปุ่ม
+  const btn = $('gc-start-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังดำเนินการ...';
+
+  if (!googleAccessToken) {
+    // ขอ Token ก่อน แล้วค่อยซิงค์
+    _requestGcToken(() => _doGcSync(room, subj));
+  } else {
+    await _doGcSync(room, subj);
+  }
+}
+
+function _requestGcToken(callback) {
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
+    // ── scope ครบถ้วน รวม submissions ──
     scope: [
       'https://www.googleapis.com/auth/classroom.courses.readonly',
       'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
-      'https://www.googleapis.com/auth/classroom.rosters.readonly'
+      'https://www.googleapis.com/auth/classroom.coursework.me.readonly',
+      'https://www.googleapis.com/auth/classroom.rosters.readonly',
+      'https://www.googleapis.com/auth/classroom.student-submissions.students.readonly'
     ].join(' '),
-    callback: response => {
-      if (response.access_token) {
-        googleAccessToken = response.access_token;
-        showToast('เชื่อมต่อ Google สำเร็จ!', 'success');
-        if (callback) callback();
-      } else {
-        showToast('ไม่สามารถขอสิทธิ์ Google ได้', 'error');
+    callback: resp => {
+      if (resp.error) {
+        showToast('Google Auth ล้มเหลว: ' + resp.error, 'error');
+        const btn = $('gc-start-btn');
+        if (btn) { btn.disabled = false; btn.textContent = '🚀 เชื่อมต่อ Google & เริ่มซิงค์'; }
+        return;
       }
+      googleAccessToken = resp.access_token;
+      gcLog('เชื่อมต่อ Google สำเร็จ', 'ok');
+      if (callback) callback();
     }
   });
-  tokenClient.requestAccessToken();
+  tokenClient.requestAccessToken({ prompt: '' });
 }
 
-async function syncFromClassroom() {
-  // ถ้ายังไม่มี token ให้ขอ OAuth ก่อน แล้ว callback กลับมา
-  if (!googleAccessToken) { initGoogleAuth(syncFromClassroom); return; }
-
-  // ─── ตรวจสอบว่าเลือกห้องและวิชาแล้ว ───
-  // รองรับการกดจากทั้ง tab ตรวจงาน และ tab งาน
-  const currentRoom = $('g-room').value || $('f-room').value;
-  const currentSubj = $('g-subj').value;
-
-  if (!currentRoom) {
-    showToast('กรุณาเลือก "ห้องเรียน" ในช่อง "เลือกห้อง" ก่อนซิงค์', 'warn'); return;
-  }
-  if (!currentSubj) {
-    showToast('กรุณาเลือก "วิชา" ในช่อง "เลือกวิชา" ก่อนซิงค์', 'warn'); return;
-  }
-
-  setSyncProgress(5, '🔍 กำลังค้นหาห้องเรียนใน Google Classroom...');
+async function _doGcSync(room, subj) {
+  gcLog(`เริ่มซิงค์ | ห้อง: ${room} | วิชา: ${subj}`, 'info');
+  setSyncProgress(5, '🔍 ค้นหาห้องเรียนใน Google Classroom...');
 
   try {
-    // ── A. ดึงรายวิชาทั้งหมด ──
-    const coursesResp = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=50', {
-      headers: { Authorization: `Bearer ${googleAccessToken}` }
-    });
-    if (!coursesResp.ok) throw new Error('ไม่สามารถดึงรายวิชาได้ (HTTP ' + coursesResp.status + ')');
-    const coursesData = await coursesResp.json();
+    // ══ STEP 1: หา Course ══
+    gcLog('กำลังดึงรายวิชา...', 'info');
+    const coursesData = await gcFetch(
+      'https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=50'
+    );
 
     if (!coursesData.courses?.length) {
+      gcLog('ไม่พบวิชาในบัญชีนี้', 'err');
       setSyncProgress(0);
-      showToast('ไม่พบวิชาเรียนในบัญชี Google นี้', 'error'); return;
+      showToast('ไม่พบวิชาเรียนในบัญชี Google นี้', 'error');
+      return;
     }
 
-    // จับคู่ห้องเรียน: เทียบกับชื่อ course หรือ section
     const targetCourse = coursesData.courses.find(c =>
-      (c.name || '').includes(currentRoom) || (c.section || '').includes(currentRoom)
+      (c.name || '').includes(room) || (c.section || '').includes(room)
     );
+
     if (!targetCourse) {
+      gcLog(`ไม่พบห้อง "${room}" | วิชาที่มี: ${coursesData.courses.map(c => c.name).join(', ')}`, 'err');
       setSyncProgress(0);
-      showToast(`ไม่พบห้อง "${currentRoom}" ใน Google Classroom`, 'error'); return;
+      showToast(`ไม่พบห้อง "${room}" ใน Classroom`, 'error');
+      return;
+    }
+    gcLog(`พบ Course: "${targetCourse.name}" (ID: ${targetCourse.id})`, 'ok');
+    setSyncProgress(15, '👥 กำลังดึงรายชื่อนักเรียน...');
+
+    // ══ STEP 2: ดึง Roster (userId → email) ══
+    const rosterData = await gcFetch(
+      `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students?pageSize=200`
+    );
+    const gcEmailMap = {};
+    (rosterData.students || []).forEach(s => {
+      if (s.userId && s.profile?.emailAddress) {
+        gcEmailMap[s.userId] = s.profile.emailAddress.toLowerCase();
+      }
+    });
+    gcLog(`นักเรียนใน Classroom: ${Object.keys(gcEmailMap).length} คน`, 'info');
+
+    // Map email → student ในระบบ
+    const localStudents = students.filter(s => s.classroom === room);
+    const localEmailMap = {};
+    localStudents.forEach(s => {
+      if (s.email) localEmailMap[s.email.toLowerCase()] = s;
+    });
+    gcLog(`นักเรียนในระบบ (${room}): ${localStudents.length} คน | มี email: ${Object.keys(localEmailMap).length} คน`, 'info');
+
+    // ตรวจสอบการ match
+    let matchCount = 0;
+    Object.values(gcEmailMap).forEach(email => { if (localEmailMap[email]) matchCount++; });
+    gcLog(`จับคู่ email ได้: ${matchCount} คน`, matchCount > 0 ? 'ok' : 'warn');
+    if (matchCount === 0) {
+      gcLog('⚠️ ไม่มี email ตรงกันเลย! ตรวจสอบ email ของนักเรียนในระบบ', 'warn');
     }
 
-    setSyncProgress(20, `📚 พบห้อง: ${targetCourse.name} — กำลังดึงนักเรียน...`);
+    setSyncProgress(25, '📝 กำลังดึงรายการงาน...');
 
-    // ── B. ดึงรายชื่อนักเรียนใน course ──
-    const studentsResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students?pageSize=200`, {
-      headers: { Authorization: `Bearer ${googleAccessToken}` }
-    });
-    const studentsData = await studentsResp.json();
-    // Map userId → email
-    const googleStudentsMap = {};
-    (studentsData.students || []).forEach(s => {
-      googleStudentsMap[s.userId] = (s.profile?.emailAddress || '').toLowerCase();
-    });
-
-    setSyncProgress(35, '📝 กำลังดึงรายการงาน...');
-
-    // ── C. ดึงงานทั้งหมดของ course ──
-    const workResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork?orderBy=updateTime%20desc&pageSize=100`, {
-      headers: { Authorization: `Bearer ${googleAccessToken}` }
-    });
-    if (!workResp.ok) throw new Error('ไม่สามารถดึงงานได้');
-    const workData = await workResp.json();
+    // ══ STEP 3: ดึงงาน ══
+    const workData = await gcFetch(
+      `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork?pageSize=100&orderBy=updateTime%20desc`
+    );
 
     if (!workData.courseWork?.length) {
+      gcLog('ไม่พบงานใน Course นี้', 'warn');
       setSyncProgress(0);
-      showToast('ไม่พบงานใน Classroom ห้องนี้', 'warn'); return;
+      showToast('ไม่พบงานใน Classroom', 'warn');
+      return;
     }
 
-    const works     = workData.courseWork;
-    const totalWork = works.length;
+    const works = workData.courseWork;
+    gcLog(`พบงาน: ${works.length} ชิ้น`, 'ok');
+    setSyncProgress(30, `⚙️ กำลังซิงค์ ${works.length} งาน...`);
 
-    // ── D. วน loop งานแต่ละชิ้น ──
-    for (let wi = 0; wi < totalWork; wi++) {
+    let totalGraded = 0;
+
+    // ══ STEP 4: วนงานแต่ละชิ้น ══
+    for (let wi = 0; wi < works.length; wi++) {
       const work = works[wi];
-      const pct  = 35 + Math.round(((wi + 1) / totalWork) * 60);
-      setSyncProgress(pct, `⚙️ ซิงค์งาน ${wi + 1}/${totalWork}: ${work.title}`);
+      const pct  = 30 + Math.round(((wi + 1) / works.length) * 65);
+      setSyncProgress(pct, `⚙️ งาน ${wi+1}/${works.length}: ${work.title}`);
+      gcLog(`\n📝 งาน: "${work.title}" (maxPoints: ${work.maxPoints})`, 'info');
 
-      const category = detectCategory(work.title);
+      // ─ 4a. Upsert assignment ─
+      const asgnPayload = {
+        name:             work.title,
+        description:      work.description || '',
+        subject:          subj,
+        classroom:        room,
+        category:         detectCategory(work.title),
+        max_score:        work.maxPoints || 10,
+        passing_score:    Math.ceil((work.maxPoints || 10) * 0.5),
+        type:             'Google Classroom',
+        gc_coursework_id: work.id
+      };
 
-      // upsert assignment โดยใช้ gc_coursework_id เพื่อไม่สร้างซ้ำ
-      const { data: asgn, error: asgnErr } = await _sb
+      // ตรวจสอบว่ามีงานนี้แล้วหรือไม่
+      const { data: existCheck } = await _sb
         .from('assignments')
-        .upsert({
-          name:          work.title,
-          description:   work.description || 'นำเข้าจาก Google Classroom',
-          subject:       currentSubj,
-          classroom:     currentRoom,
-          category,
+        .select('id')
+        .eq('gc_coursework_id', work.id)
+        .maybeSingle();
+
+      let asgnId;
+      if (existCheck) {
+        // Update ข้อมูลงานเดิม
+        const { data: upd, error: updErr } = await _sb
+          .from('assignments')
+          .update(asgnPayload)
+          .eq('id', existCheck.id)
+          .select('id')
+          .single();
+        if (updErr) { gcLog(`  ❌ Update error: ${updErr.message}`, 'err'); continue; }
+        asgnId = upd.id;
+        gcLog(`  ↻ อัปเดตงานเดิม (ID: ${asgnId})`, 'info');
+      } else {
+        // Insert งานใหม่
+        const { data: ins, error: insErr } = await _sb
+          .from('assignments')
+          .insert(asgnPayload)
+          .select('id')
+          .single();
+        if (insErr) { gcLog(`  ❌ Insert error: ${insErr.message}`, 'err'); continue; }
+        asgnId = ins.id;
+        gcLog(`  ✓ สร้างงานใหม่ (ID: ${asgnId})`, 'ok');
+      }
+
+      // ─ 4b. สร้าง grade rows สำหรับทุกคนในห้อง (not_sent เป็น default) ─
+      if (localStudents.length > 0) {
+        const initRows = localStudents.map(s => ({
+          student_id:    s.id,
+          assignment_id: asgnId,
+          score:         null,
           max_score:     work.maxPoints || 10,
-          passing_score: Math.round((work.maxPoints || 10) * 0.5),
-          type:          'Google Classroom',
-          gc_coursework_id: work.id
-        }, { onConflict: 'gc_coursework_id' })
-        .select()
-        .single();
+          status:        'not_sent'
+        }));
+        // ignoreDuplicates = true เพื่อไม่ทับข้อมูลที่มีอยู่
+        await _sb.from('grades').upsert(initRows, {
+          onConflict: 'student_id,assignment_id',
+          ignoreDuplicates: true
+        });
+        gcLog(`  ✓ Ensure grade rows: ${localStudents.length} คน`, 'info');
+      }
 
-      if (asgnErr) { console.warn('upsert assignment error:', asgnErr); continue; }
+      // ─ 4c. ดึง studentSubmissions ─
+      let subsData;
+      try {
+        subsData = await gcFetch(
+          `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions?pageSize=200`
+        );
+      } catch (subErr) {
+        gcLog(`  ⚠️ ดึง submissions ไม่ได้: ${subErr.message}`, 'warn');
+        continue;
+      }
 
-      // ── E. ดึงสถานะการส่งงาน ──
-      const subResp = await fetch(
-        `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions?pageSize=200`,
-        { headers: { Authorization: `Bearer ${googleAccessToken}` } }
-      );
-      const subData = await subResp.json();
-      if (!subData.studentSubmissions?.length) continue;
+      const submissions = subsData.studentSubmissions || [];
+      gcLog(`  Submissions: ${submissions.length} รายการ`, 'info');
 
-      // map email → นักเรียนในระบบ
+      // ─ 4d. แปลง submissions → grade updates ─
       const gradeUpdates = [];
-      for (const sub of subData.studentSubmissions) {
-        const email = googleStudentsMap[sub.userId];
+
+      for (const sub of submissions) {
+        const email = gcEmailMap[sub.userId];
         if (!email) continue;
 
-        // ค้นหานักเรียนจาก email (case-insensitive)
-        const targetStudent = students.find(s => (s.email || '').toLowerCase() === email);
-        if (!targetStudent) continue;
+        const localSt = localEmailMap[email];
+        if (!localSt) continue;
 
-        // แปลง state → status
+        // แปลง state
         let status = 'not_sent';
-        if (sub.state === 'TURNED_IN' || sub.state === 'RECLAIMED_BY_STUDENT') status = 'waiting';
-        if (sub.state === 'RETURNED') status = 'checked';
+        if (sub.state === 'TURNED_IN' || sub.state === 'RECLAIMED_BY_STUDENT') {
+          status = 'waiting';
+        } else if (sub.state === 'RETURNED') {
+          status = 'checked';
+        }
+
+        // ── ดึงคะแนน: ลองทุก field ──
+        let score = null;
+        if (sub.state === 'RETURNED' || sub.state === 'TURNED_IN') {
+          if (sub.assignedGrade !== undefined && sub.assignedGrade !== null) {
+            score = parseFloat(sub.assignedGrade);
+          } else if (sub.draftGrade !== undefined && sub.draftGrade !== null) {
+            score = parseFloat(sub.draftGrade);
+            // ถ้ามีแค่ draftGrade = ครูยังไม่ return → รอตรวจ
+            if (status === 'not_sent') status = 'waiting';
+          }
+        }
 
         gradeUpdates.push({
-          student_id:    targetStudent.id,
-          assignment_id: asgn.id,
-          score:         sub.assignedGrade ?? null,
+          student_id:    localSt.id,
+          assignment_id: asgnId,
+          score,
           max_score:     work.maxPoints || 10,
-          status
+          status,
+          updated_at:    new Date().toISOString()
         });
       }
 
-      if (gradeUpdates.length) {
+      // ─ 4e. Upsert คะแนนที่ได้จาก Classroom ─
+      if (gradeUpdates.length > 0) {
         const { error: grErr } = await _sb
           .from('grades')
           .upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
-        if (grErr) console.warn('upsert grades error:', grErr);
+
+        if (grErr) {
+          gcLog(`  ❌ บันทึกคะแนน error: ${grErr.message}`, 'err');
+        } else {
+          const gradedNow = gradeUpdates.filter(g => g.score !== null).length;
+          gcLog(`  ✓ อัปเดต ${gradeUpdates.length} คน | มีคะแนน: ${gradedNow} คน`, 'ok');
+          totalGraded += gradedNow;
+        }
+      } else {
+        gcLog('  ℹ️ ไม่มี submission ที่ตรงกับนักเรียนในระบบ', 'warn');
       }
+
+      // หน่วงเล็กน้อยป้องกัน rate limit
+      await new Promise(r => setTimeout(r, 150));
     }
 
+    // ══ เสร็จสิ้น ══
     setSyncProgress(0);
-    showToast(`✅ ซิงค์ ${totalWork} งานจาก Classroom สำเร็จ!`, 'success');
+    gcLog(`\n════ ซิงค์เสร็จ! ${works.length} งาน | มีคะแนน: ${totalGraded} รายการ ════`, 'ok');
+    showToast(`✅ ซิงค์สำเร็จ! ${works.length} งาน | คะแนน ${totalGraded} รายการ`, 'success');
 
-    // รีโหลดข้อมูลในหน้าจัดการ
+    // รีโหลดข้อมูล
     assignments = await gasCall('getAllAssignments');
     populateDropdowns();
     renderAsgnTable();
     syncAssignSelect();
 
+    // ปลดล็อกปุ่ม
+    const btn = $('gc-start-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '✅ ซิงค์เสร็จแล้ว'; }
+
   } catch (e) {
     setSyncProgress(0);
-    console.error(e);
-    showToast('❌ Sync Error: ' + (e.message || e), 'error');
+    gcLog(`\nFATAL: ${e.message}`, 'err');
+    showToast('❌ Sync Error: ' + e.message, 'error');
+    console.error('[GC Sync]', e);
+
+    if (e.message.includes('Token') || e.message.includes('401')) {
+      googleAccessToken = null;
+      gcLog('Token หมดอายุ — กดซิงค์อีกครั้ง', 'warn');
+    }
+    const btn = $('gc-start-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 ลองอีกครั้ง'; }
   }
 }
 
