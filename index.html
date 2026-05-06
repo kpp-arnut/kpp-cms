@@ -1171,6 +1171,15 @@ function adminTab(name) {
   if (name === 'behavior') renderBehaviorList();
 }
 
+
+async function doLogout() {
+  await _sb.auth.signOut();
+  isAdmin = false;
+  currentUser = null;
+  location.reload(); // รีโหลดหน้าเว็บเพื่อเคลียร์ State
+}
+
+  
 // ─────────────────────────────────────────────────────────
 //  BEHAVIOR TAB
 // ─────────────────────────────────────────────────────────
@@ -2086,11 +2095,17 @@ async function exportAttendanceReport() {
 // ─────────────────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('DOMContentLoaded', async function() {
+  // เช็กว่ามีคนล็อกอินค้างไว้ไหม
+  const { data: { session } } = await _sb.auth.getSession();
+  if (session) {
+    isAdmin = true;
+    currentUser = session.user;
+    $('cfg-dot').className = 'cfg-dot ok';
+  }
+
   adminTab('grading');
   $('st-id-inp').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchStatus(); });
-  // แสดง Login modal เมื่อกดหน้า Admin
-  // (จัดการใน showPage แล้ว)
 });
 </script>
 
