@@ -1451,8 +1451,23 @@ async function searchStatus() {
     updatePieChart(chartPoints);
 
     if (attendance && attendance.length > 0) {
-      renderAttendanceGrid(attendance);
-      $('st-att-card').style.display = 'block';
+      // จัดกลุ่มข้อมูลตามวิชา
+      const groupedAtt = attendance.reduce((acc, curr) => {
+        const subj = curr.subject || 'ไม่ระบุวิชา';
+        if (!acc[subj]) acc[subj] = [];
+        acc[subj].push(curr);
+        return acc;
+      }, {});
+    
+      // ล้างค่าเก่าใน Container ก่อน (ถ้ามี)
+      const attCard = $('st-att-card');
+      attCard.innerHTML = '<div class="card-title">📅 ประวัติการเข้าเรียนแยกรายวิชา</div>';
+      
+      // วนลูปสร้างตารางแยกตามวิชา
+      for (const subj in groupedAtt) {
+        renderAttendanceGrid(subj, groupedAtt[subj]); 
+      }
+      attCard.style.display = 'block';
     }
 
     $('st-results').style.display = 'block';
@@ -1491,37 +1506,57 @@ function updatePieChart(dataPoints) {
   });
 }
 
-function renderAttendanceGrid(attendanceData) {
-  var thead = $('st-att-grid-head');
-  var tbody = $('st-att-grid-body');
-  if (!attendanceData || !attendanceData.length) {
-    tbody.innerHTML = '<tr><td style="color:#fff;text-align:center;padding:20px">ไม่พบประวัติการเข้าเรียน</td></tr>'; return;
-  }
-  var uniqueDates = [...new Set(attendanceData.map(function(a) { return a.attendance_date; }))].sort();
+function renderAttendanceGrid(subjectName, attendanceData) {
+  const attCard = $('st-att-card');
+  
+  // สร้างโครงสร้างตารางใหม่สำหรับวิชานี้
+  const wrapper = document.createElement('div');
+  wrapper.className = 'mb-4';
+  wrapper.innerHTML = `
+    <div style="color:var(--accent); font-weight:bold; margin-bottom:10px; border-left:4px solid var(--primary); padding-left:10px;">
+        📚 วิชา: ${subjectName}
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+  
+  const thead = wrapper.querySelector('thead');
+  const tbody = wrapper.querySelector('tbody');
+
+  // ตรรกะการคำนวณ (ใช้ ลา = 0.25 ตามที่คุณครูต้องการ)
+  var uniqueDates = [...new Set(attendanceData.map(a => a.attendance_date))].sort();
   var attMap = {};
   var attendedHours = 0, totalHours = 0;
-  attendanceData.forEach(function(a) {
+
+  attendanceData.forEach(a => {
     attMap[a.attendance_date] = a;
     var h = parseFloat(a.hours) || 1;
     totalHours += h;
-    if (a.status === 'มา' || a.status === 'ลา') attendedHours += h;
+    if (a.status === 'มา') attendedHours += h;
+    else if (a.status === 'ลา') attendedHours += (h * 0.25);
     else if (a.status === 'สาย') attendedHours += (h * 0.5);
   });
+  
   var pct = totalHours > 0 ? (attendedHours / totalHours) * 100 : 0;
 
+  // สร้างหัวตาราง (Dates)
   var headHtml = '<tr><th class="att-side-label" style="position:sticky;left:0;z-index:30">รายการ \\ วันที่</th>';
-  uniqueDates.forEach(function(date) {
-    var d   = new Date(date);
-    var rec = attMap[date];
-    var h   = rec ? rec.hours : 1;
+  uniqueDates.forEach(date => {
+    var d = new Date(date);
+    var h = attMap[date].hours;
     var disp = d.getDate() + '/' + (d.getMonth()+1) + '/' + (d.getFullYear()+543).toString().slice(-2);
-    headHtml += '<th style="text-align:center;min-width:80px"><div style="font-size:13px">' + disp + '</div><div style="font-size:10px;font-weight:400;opacity:.9">(' + h + ' ชม.)</div></th>';
+    headHtml += `<th style="text-align:center;min-width:80px"><div style="font-size:13px">${disp}</div><div style="font-size:10px;font-weight:400;opacity:.9">(${h} ชม.)</div></th>`;
   });
   headHtml += '<th class="att-summary-col" style="text-align:center;min-width:80px">มา/รวม</th><th class="att-summary-col" style="text-align:center;min-width:70px">ร้อยละ</th></tr>';
   thead.innerHTML = headHtml;
 
+  // สร้างแถวข้อมูล (Status)
   var bodyHtml = '<tr><td class="att-side-label" style="position:sticky;left:0;z-index:10;padding:15px">สถานะ</td>';
-  uniqueDates.forEach(function(date) {
+  uniqueDates.forEach(date => {
     var rec = attMap[date];
     var symbol = '-', cellBg = 'rgba(255,255,255,0.03)';
     if (rec) {
@@ -1530,13 +1565,15 @@ function renderAttendanceGrid(attendanceData) {
       else if (rec.status === 'ลา')  { symbol = '📝'; cellBg = 'rgba(14,165,233,0.2)'; }
       else if (rec.status === 'สาย') { symbol = '⏰'; cellBg = 'rgba(245,158,11,0.2)'; }
     }
-    bodyHtml += '<td style="text-align:center;background:' + cellBg + ';font-size:20px">' + symbol + '</td>';
+    bodyHtml += `<td style="text-align:center;background:${cellBg};font-size:20px">${symbol}</td>`;
   });
+  
   var pctColor = pct >= 80 ? '#22d3ee' : '#ef4444';
-  bodyHtml += '<td class="att-summary-col" style="text-align:center">' + attendedHours + '/' + totalHours + '</td><td class="att-summary-col" style="text-align:center;color:' + pctColor + ';font-size:18px">' + pct.toFixed(0) + '%</td></tr>';
+  bodyHtml += `<td class="att-summary-col" style="text-align:center">${attendedHours}/${totalHours}</td><td class="att-summary-col" style="text-align:center;color:${pctColor};font-size:18px">${pct.toFixed(0)}%</td></tr>`;
   tbody.innerHTML = bodyHtml;
-}
 
+  attCard.appendChild(wrapper); // เพิ่มตารางวิชานี้เข้าไปในหน้าจอ
+}
 // ─────────────────────────────────────────────────────────
 //  GRADING
 // ─────────────────────────────────────────────────────────
