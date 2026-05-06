@@ -737,6 +737,10 @@
         <div class="card">
           <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div class="card-title" style="margin:0">📝 รายการงานที่มอบหมาย</div>
+            <button class="btn btn-outline btn-sm" onclick="syncFromClassroom()" style="color:#4285F4; border-color:#4285F4;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png" style="height:16px; margin-right:6px; vertical-align:middle;">
+            ซิงค์จาก Classroom
+            </button>
             <button class="btn btn-primary btn-sm" onclick="populateAsgnModal(); openModal('m-add-asgn')">➕ เพิ่มงาน</button>
           </div>
           <div class="tbl-wrap">
@@ -2317,92 +2321,128 @@ function initGoogleAuth() {
 async function syncFromClassroom() {
   if (!googleAccessToken) { initGoogleAuth(); return; }
 
-  const currentRoom = $('g-room').value; 
-  if (!currentRoom) { showToast('กรุณาเลือกห้องเรียนก่อนซิงค์', 'warn'); return; }
+  // 1. เช็กห้องเรียนและวิชาจากหน้าจัดการงาน
+  const currentRoom = $('f-room').value || $('g-room').value; 
+  const currentSubj = $('na-subj-sel').value || $('g-subj').value;
+
+  if (!currentRoom) { 
+    showToast('กรุณาเลือก "ห้องเรียน" ในช่องค้นหาก่อน เพื่อระบุห้องที่จะซิงค์', 'warn'); 
+    return; 
+  }
+  
+  if (!currentSubj || currentSubj === "__new__") {
+    showToast('กรุณาเลือก "วิชา" ให้ชัดเจนก่อนซิงค์', 'warn');
+    return;
+  }
 
   try {
-    showToast('🔄 กำลังค้นหาห้องใน Classroom...', 'info');
+    showToast('🔄 กำลังเชื่อมต่อ Google Classroom...', 'info');
 
-    // A. หาห้องเรียนที่ชื่อตรงกัน
+    // A. หาห้องเรียน (เช็ก coursesData ก่อน)
     const coursesResp = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
       headers: { 'Authorization': `Bearer ${googleAccessToken}` }
     });
     const coursesData = await coursesResp.json();
-    const targetCourse = coursesData.courses.find(c => c.name.includes(currentRoom));
-
-    if (!targetCourse) {
-      showToast('ไม่พบห้อง ' + currentRoom + ' ใน Classroom', 'error');
+    
+    // ป้องกัน Error ถ้าไม่มีวิชาเลย
+    if (!coursesData?.courses) {
+      showToast('ไม่พบวิชาเรียนในบัญชี Google นี้', 'error');
       return;
     }
 
-    // B. ดึงงานทั้งหมด
+    const targetCourse = coursesData.courses.find(c => c.name.includes(currentRoom));
+    if (!targetCourse) {
+      showToast('ไม่พบห้อง ' + currentRoom + ' ใน Google Classroom', 'error');
+      return;
+    }
+
+    // B. ดึงงาน (เช็ก workData ก่อน)
     const workResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork`, {
       headers: { 'Authorization': `Bearer ${googleAccessToken}` }
     });
     const workData = await workResp.json();
 
-    if (!workData.courseWork) { showToast('ไม่พบงานในห้องนี้', 'warn'); return; }
+    if (!workData?.courseWork) { 
+      showToast('ไม่พบงานใน Classroom ห้องนี้', 'warn'); 
+      return; 
+    }
+
+    showToast(`⏳ พบ ${workData.courseWork.length} งาน กำลังซิงค์คะแนน...`, 'info');
+
+    // C. ดึงรายชื่อนักเรียน (ป้องกัน Error ตรง forEach)
+    const studentsInClassResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students`, {
+      headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+    });
+    const studentsData = await studentsInClassResp.json();
+    const googleStudentsMap = {};
+    
+    // ใช้ ?. เพื่อป้องกัน Error: Cannot read properties of undefined (reading 'forEach')
+    studentsData?.students?.forEach(s => {
+      googleStudentsMap[s.userId] = s.profile.emailAddress;
+    });
 
     for (const work of workData.courseWork) {
       let category = detectCategory(work.title);
 
-      // C. สร้าง/อัปเดตงานใน Supabase (Assignments)
+      // สร้าง/อัปเดตงาน
       const { data: asgn, error: asgnErr } = await _sb.from('assignments').upsert({
         name: work.title,
-        subject: $('g-subj').value || "วิชาทั่วไป",
+        description: work.description || 'นำเข้าจาก Google Classroom',
+        subject: currentSubj,
         classroom: currentRoom,
         category: category,
         max_score: work.maxPoints || 10,
+        passing_score: (work.maxPoints || 10) * 0.5,
+        type: 'Google Classroom',
         gc_coursework_id: work.id 
       }, { onConflict: 'gc_coursework_id' }).select().single();
 
       if (asgnErr) continue;
 
-      // D. ดึงสถานะการส่ง (Submissions)
+      // D. ดึงสถานะการส่ง (ป้องกัน Error ตรง map)
       const subResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions`, {
         headers: { 'Authorization': `Bearer ${googleAccessToken}` }
       });
       const subData = await subResp.json();
 
-      if (!subData.studentSubmissions) continue;
+      if (subData?.studentSubmissions) {
+        const gradeUpdates = subData.studentSubmissions.map(sub => {
+          const studentEmail = googleStudentsMap[sub.userId];
+          // ค้นหาในตัวแปร students ของเรา (ต้องโหลดมาก่อนแล้วใน initAdmin)
+          const targetStudent = students.find(s => s.email === studentEmail);
 
-      // E. ดึงรายชื่อนักเรียนใน Classroom นี้ (เพื่อหา Email)
-      const studentsInClassResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students`, {
-        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
-      });
-      const studentsData = await studentsInClassResp.json();
-      const googleStudentsMap = {};
-      studentsData.students.forEach(s => googleStudentsMap[s.userId] = s.profile.emailAddress);
+          if (!targetStudent) return null;
 
-      // F. เตรียมข้อมูลเพื่อบันทึกลง Grades
-      const gradeUpdates = subData.studentSubmissions.map(sub => {
-        const studentEmail = googleStudentsMap[sub.userId];
-        const targetStudent = students.find(s => s.email === studentEmail); // แมตช์อีเมล
+          let status = 'not_sent'; 
+          if (sub.state === 'TURNED_IN') status = 'waiting';
+          if (sub.state === 'RETURNED') status = 'checked';
 
-        if (!targetStudent) return null;
+          return {
+            student_id: targetStudent.id,
+            assignment_id: asgn.id,
+            score: sub.assignedGrade || 0,
+            max_score: work.maxPoints || 10,
+            status: status
+          };
+        }).filter(g => g !== null);
 
-        let status = 'not_sent'; 
-        if (sub.state === 'TURNED_IN') status = 'waiting';
-        if (sub.state === 'RETURNED') status = 'checked';
-
-        return {
-          student_id: targetStudent.id,
-          assignment_id: asgn.id,
-          score: sub.assignedGrade || 0,
-          max_score: work.maxPoints || 10,
-          status: status
-        };
-      }).filter(g => g !== null);
-
-      if (gradeUpdates.length > 0) {
-        await _sb.from('grades').upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
+        if (gradeUpdates.length > 0) {
+          await _sb.from('grades').upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
+        }
       }
     }
 
-    showToast('✅ ซิงค์งานและคะแนนสำเร็จ!', 'success');
-    loadGrading(); 
+    showToast('✅ ซิงค์จาก Classroom สำเร็จ!', 'success');
+    
+    // รีโหลดตาราง
+    assignments = await gasCall('getAllAssignments');
+    if ($('page-admin').classList.contains('active')) {
+      renderAsgnTable();
+    }
+    syncAssignSelect();
 
   } catch (e) {
+    console.error(e);
     showToast('Error: ' + e.message, 'error');
   }
 }
