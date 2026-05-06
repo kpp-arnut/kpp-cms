@@ -51,13 +51,42 @@
       background: radial-gradient(ellipse at 15% 25%, rgba(6,182,212,0.2) 0%, transparent 50%),
                   radial-gradient(ellipse at 85% 75%, rgba(14,165,233,0.15) 0%, transparent 50%);
     }
-    .dna-bg {
-      position:absolute; inset:0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='900'%3E%3Cpath d='M60,20 C110,80 160,140 110,200 C60,260 110,320 160,380' stroke='rgba(34,211,238,0.12)' fill='none' stroke-width='2'/%3E%3Ccircle cx='300' cy='150' r='3' fill='rgba(14,165,233,0.2)'/%3E%3Ccircle cx='800' cy='400' r='5' fill='rgba(6,182,212,0.15)'/%3E%3C/svg%3E");
-      background-size: cover;
-      animation: drift 40s infinite alternate;
+.dna-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, #050e30, #0a194a);
+      opacity: 0.6;
+      overflow: hidden;
     }
-    @keyframes drift { from{transform:scale(1)} to{transform:scale(1.08) translateX(-15px)} }
+
+    /* สร้างตัวเกลียว DNA ด้วย SVG */
+    .dna-bg::before {
+      content: "";
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      top: -50%;
+      left: -50%;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M30,0 Q50,50 30,100 M70,0 Q50,50 70,100' stroke='rgba(34,211,238,0.15)' fill='none' stroke-width='1.5'/%3E%3Ccircle cx='30' cy='10' r='1.5' fill='rgba(34,211,238,0.3)'/%3E%3Ccircle cx='70' cy='10' r='1.5' fill='rgba(34,211,238,0.3)'/%3E%3C/svg%3E");
+      background-size: 150px 150px;
+      animation: dnaRotate 60s linear infinite; /* หมุนช้าๆ 60 วินาทีต่อรอบ */
+      transform-origin: center;
+    }
+
+    /* Animation สำหรับการหมุน */
+    @keyframes dnaRotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* เพิ่ม Effect หมอกจางๆ ให้ดูมีมิติ */
+    .bg-scene::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, transparent 0%, var(--bg-dark) 85%);
+      pointer-events: none;
+    }
 
     .app { position:relative; z-index:1; }
 
@@ -2263,6 +2292,7 @@ window.addEventListener('DOMContentLoaded', async function() {
     currentUser = session.user;
     if ($('cfg-dot')) $('cfg-dot').className = 'cfg-dot ok';
     if ($('nav-logout')) $('nav-logout').style.display = 'flex';
+    initAdmin();
   }
 
   // 2. ตั้งค่าหน้าเริ่มต้นให้เป็นหน้าสถานะ (ตรวจคะแนน) เท่านั้น
@@ -2470,15 +2500,11 @@ async function saveStudent() {
 
 function detectCategory(title) {
   const t = title.toLowerCase();
-  if (t.includes('ก่อนกลางภาค') || t.includes('p1')) {
-    return 'ก่อนกลางภาค';
-  } else if (t.includes('กลางภาค') || t.includes('mid')) {
-    return 'กลางภาค';
-  } else if (t.includes('หลังกลาง') || t.includes('p2')) {
-    return 'หลังกลางภาค';
-  } else {
-    return 'ปลายภาค'; 
-  }
+  if (t.includes('ปลายภาค') || t.includes('final') || t.includes('สอบปลาย')) return 'ปลายภาค';
+  if (t.includes('กลางภาค') || t.includes('midterm') || t.includes('สอบกลาง')) return 'กลางภาค';
+  if (t.includes('หลังกลางภาค') || t.includes('p2')) return 'หลังกลางภาค';
+  if (t.includes('ก่อนกลางภาค') || t.includes('p1')) return 'หลังกลางภาค';
+  return 'ก่อนกลางภาค'; // Default เป็นก่อนกลางภาคปลอดภัยกว่าครับ
 }
   
 </script>
