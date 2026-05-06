@@ -2371,6 +2371,20 @@ async function saveStudent() {
     initAdmin(); // รีโหลดข้อมูลนักเรียนใหม่
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
 }
+
+function detectCategory(title) {
+  const t = title.toLowerCase();
+  if (t.includes('ก่อนกลางภาค') || t.includes('p1')) {
+    return 'ก่อนกลางภาค';
+  } else if (t.includes('กลางภาค') || t.includes('mid')) {
+    return 'กลางภาค';
+  } else if (t.includes('หลังกลาง') || t.includes('p2')) {
+    return 'หลังกลางภาค';
+  } else {
+    return 'ปลายภาค'; 
+  }
+}
+  
 </script>
 
 </body>
