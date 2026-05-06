@@ -453,7 +453,7 @@
             <div class="text-center mt-4">
               <div class="text-sm text-muted">คะแนนรวมถ่วงน้ำหนัก</div>
               <div id="final-weighted-score" style="font-size:3rem;font-weight:800;color:#fff;line-height:1;">0.0</div>
-              <div class="text-muted">/ 115 คะแนน</div>
+              <div class="text-muted">/ 100 คะแนน</div>
             </div>
           </div>
 
@@ -1426,9 +1426,18 @@ async function searchStatus() {
     });
 
     var behaviorScore = parseFloat(stInfo.behavior_score !== undefined ? stInfo.behavior_score : 10);
-    chartPoints.push(behaviorScore);
+    chartPoints.push(behaviorScore.toFixed(2));
     var grandTotal = weightedTotal + behaviorScore;
 
+    if ($('final-weighted-score')) {
+        $('final-weighted-score').textContent = grandTotal.toFixed(1);
+        
+        if (grandTotal > 100) {
+            $('final-weighted-score').style.color = 'var(--amber)';
+        } else {
+            $('final-weighted-score').style.color = '#fff';
+        }
+    }
     $('cnt-all').textContent  = sorted.length;
     $('cnt-ok').textContent   = countOk;
     $('cnt-wait').textContent = countWait;
