@@ -412,6 +412,9 @@
           🔐 ตรวจงาน
           <span class="cfg-dot" id="cfg-dot"></span>
         </button>
+        <button class="nav-btn" onclick="doLogout()" id="nav-logout" style="display:none; color:var(--red);">
+        🚪 ออกจากระบบ
+        </button>
       </nav>
     </div>
   </header>
@@ -1173,10 +1176,14 @@ function adminTab(name) {
 
 
 async function doLogout() {
-  await _sb.auth.signOut();
-  isAdmin = false;
-  currentUser = null;
-  location.reload(); // รีโหลดหน้าเว็บเพื่อเคลียร์ State
+  if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
+    await _sb.auth.signOut();
+    isAdmin = false;
+    currentUser = null;
+    $('nav-logout').style.display = 'none'; // ซ่อนปุ่ม
+    showPage('status'); // กลับไปหน้าแรก
+    location.reload(); 
+  }
 }
 
   
@@ -1227,6 +1234,7 @@ async function modifyBehavior(studentId, change) {
 //  INIT ADMIN
 // ─────────────────────────────────────────────────────────
 async function initAdmin() {
+  $('nav-logout').style.display = 'flex';
   try {
     var results = await Promise.all([
       gasCall('getStudents'),
@@ -2102,6 +2110,7 @@ window.addEventListener('DOMContentLoaded', async function() {
     isAdmin = true;
     currentUser = session.user;
     $('cfg-dot').className = 'cfg-dot ok';
+    $('nav-logout').style.display = 'flex'; // ถ้ามี session ให้โชว์ปุ่ม logout ทันที
   }
 
   adminTab('grading');
