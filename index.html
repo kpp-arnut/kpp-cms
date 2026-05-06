@@ -1111,12 +1111,22 @@ document.querySelectorAll('.modal-overlay').forEach(function(el) {
 function showPage(name) {
   stopQrScanner();
   stopAttendanceScanner();
-  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
-  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  
+  // 1. ถ้ากดปุ่ม 'admin' (ตรวจงาน) และยังไม่ได้ล็อกอิน ให้เด้งหน้าล็อกอิน
+  if (name === 'admin' && !isAdmin) {
+    openModal('m-login');
+    return; // หยุดการทำงาน ไม่เปลี่ยนหน้า
+  }
+
+  // 2. ถ้าล็อกอินแล้ว หรือกดไปหน้า 'status' (หน้าแรก) ให้เปลี่ยนหน้าตามปกติ
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  
   $('page-' + name).classList.add('active');
   $('nav-' + name).classList.add('active');
-  if (name === 'admin') {
-    if (!isAdmin) { openModal('m-login'); return; }
+  
+  // 3. ถ้าเป็นหน้า admin และล็อกอินแล้ว ให้โหลดข้อมูล
+  if (name === 'admin' && isAdmin) {
     initAdmin();
   }
 }
