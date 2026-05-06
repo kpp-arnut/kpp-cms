@@ -1409,75 +1409,90 @@ async function searchStatus() {
   var sid = $('st-id-inp').value.trim();
   if (!sid) { showToast('กรุณาใส่รหัสนักเรียน', 'error'); return; }
 
-  $('st-results').style.display  = 'none';
+  $('st-results').style.display = 'none';
   $('st-att-card').style.display = 'none';
-  $('st-empty').style.display    = 'none';
+  $('st-empty').style.display = 'none';
 
   try {
+    // ดึงข้อมูลพื้นฐานนักเรียน, เกรด (พร้อมข้อมูลงาน), และการเข้าเรียน
     var results = await Promise.all([
       gasCall('getGradesByStudent', sid),
       gasCall('getAttendanceByStudent', sid),
       gasCall('getStudentById', sid)
     ]);
-    var grades     = results[0] || [];
+    
+    var grades = results[0] || [];
     var attendance = results[1] || [];
-    var stInfo     = results[2];
+    var stInfo = results[2];
 
     if (!stInfo) { $('st-empty').style.display = 'block'; return; }
 
+    // แสดงข้อมูลส่วนตัวบน Dashboard
     var fullName = stInfo.first_name + ' ' + stInfo.last_name;
-    var metaText = 'ชั้น ' + stInfo.classroom + ' เลขที่ ' + stInfo.seat_no + ' | รหัส: ' + sid;
-    $('st-name').textContent         = fullName;
-    $('st-meta').textContent         = metaText;
+    $('st-name').textContent = fullName;
+    $('st-meta').textContent = 'ชั้น ' + stInfo.classroom + ' เลขที่ ' + stInfo.seat_no + ' | รหัส: ' + sid;
     $('st-name-display').textContent = fullName;
     $('st-meta-display').textContent = 'ชั้น ' + stInfo.classroom + ' เลขที่ ' + stInfo.seat_no;
 
+    // เตรียมตัวแปรคำนวณสัดส่วนคะแนน
     var catStats = {
-      'ก่อนกลางภาค': { current:0, max:0, weight:20 },
-      'กลางภาค':     { current:0, max:0, weight:20 },
-      'หลังกลางภาค': { current:0, max:0, weight:20 },
-      'ปลายภาค':    { current:0, max:0, weight:30 }
+      'ก่อนกลางภาค': { current: 0, max: 0, weight: 20 },
+      'กลางภาค':     { current: 0, max: 0, weight: 20 },
+      'หลังกลางภาค': { current: 0, max: 0, weight: 20 },
+      'ปลายภาค':    { current: 0, max: 0, weight: 30 }
     };
 
+    // Mapping งานที่ซ้ำกัน (เอาคะแนนสูงสุด)
     var uniqueMap = {};
     grades.forEach(function(g) {
       var aid = g.assignment_id;
-      var sc  = parseFloat(g.score || 0);
+      if (!g.assignments) return; // ข้ามถ้าข้อมูลงานไม่สมบูรณ์
+      var sc = parseFloat(g.score || 0);
       if (!uniqueMap[aid] || sc > parseFloat(uniqueMap[aid].score || 0)) {
         uniqueMap[aid] = g;
       }
     });
 
+    // เรียงลำดับตามวิชา และ ชื่องาน
     var sorted = Object.values(uniqueMap).sort(function(a, b) {
-      var sa = ((a.assignments || {}).subject || '').toLowerCase();
-      var sb = ((b.assignments || {}).subject || '').toLowerCase();
-      return sa.localeCompare(sb) || ((a.assignments || {}).name || '').localeCompare((b.assignments || {}).name || '');
+      var sa = (a.assignments.subject || '').toLowerCase();
+      var sb = (b.assignments.subject || '').toLowerCase();
+      var na = (a.assignments.name || '').toLowerCase();
+      var nb = (b.assignments.name || '').toLowerCase();
+      return sa.localeCompare(sb) || na.localeCompare(nb);
     });
 
     var countOk = 0, countWait = 0, countNo = 0;
-    var tbody    = $('st-tbody');
+    var tbody = $('st-tbody');
     tbody.innerHTML = '';
     var lastSubject = null;
 
+    if (sorted.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim);">ยังไม่มีรายการงานในขณะนี้</td></tr>';
+    }
+
     sorted.forEach(function(g) {
-      var a    = g.assignments || {};
-      var cat  = a.category   || 'ก่อนกลางภาค';
-      var type = a.type       || 'เดี่ยว';
-      var sc   = parseFloat(g.score || 0);
-      var max  = parseFloat(a.max_score || 0);
+      var a = g.assignments || {};
+      var cat = a.category || 'ก่อนกลางภาค';
+      var type = a.type || 'Google Classroom'; // รองรับงานที่ Import มา
+      var sc = parseFloat(g.score || 0);
+      var max = parseFloat(a.max_score || 10);
       var pass = parseFloat(a.passing_score || 0);
 
+      // คำนวณคะแนนสะสมตามหมวดหมู่
       if (catStats[cat]) {
         catStats[cat].max += max;
         if (g.status === 'checked') catStats[cat].current += sc;
       }
 
-      var subjectName = a.subject || '—';
+      // แสดงแถบชื่อวิชาเมื่อเปลี่ยนวิชาใหม่
+      var subjectName = a.subject || 'วิชาทั่วไป';
       if (subjectName !== lastSubject) {
-        tbody.innerHTML += '<tr class="tr-subject-group"><td colspan="5">📚 ' + subjectName + '</td></tr>';
+        tbody.innerHTML += `<tr class="tr-subject-group"><td colspan="5">📚 ${subjectName}</td></tr>`;
         lastSubject = subjectName;
       }
 
+      // กำหนด Badge และ Class ของแถวตามสถานะ
       var badge = '', rowClass = '';
       if (g.status === 'checked') {
         if (sc < pass && pass > 0) {
@@ -1493,50 +1508,51 @@ async function searchStatus() {
       }
 
       var typeClass = type.includes('สอบ') ? 'badge-amber' : 'badge-blue';
-      var scoreHtml = (g.score !== null && g.score !== undefined)
-        ? '<span class="score-big" style="font-size:1.4rem">' + g.score + '</span><span class="score-sep"> / </span><span class="score-max">' + max + '</span>'
+      var scoreHtml = (g.status === 'checked')
+        ? `<span class="score-big" style="font-size:1.4rem">${g.score}</span><span class="score-sep"> / </span><span class="score-max">${max}</span>`
         : '<span class="text-muted">—</span>';
 
-      tbody.innerHTML +=
-        '<tr class="' + rowClass + '">' +
-        '<td><small class="text-muted">' + cat + '</small></td>' +
-        '<td><strong>' + (a.name || '—') + '</strong>' + 
-(a.description ? '<div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">📝 ' + a.description + '</div>' : '') + 
-'</td>' +
-        '<td style="text-align:center"><span class="badge ' + typeClass + '">' + type + '</span></td>' +
-        '<td style="text-align:center">' + badge + '</td>' +
-        '<td style="text-align:center">' + scoreHtml + '</td>' +
-        '</tr>';
+      // ─── การแสดงผลแถวข้อมูลงาน พร้อมรายละเอียด ───
+      tbody.innerHTML += `
+        <tr class="${rowClass}">
+          <td><small class="text-muted">${cat}</small></td>
+          <td>
+            <strong>${a.name || '—'}</strong>
+            ${a.description ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px; line-height:1.4;">📝 ${a.description}</div>` : ''}
+          </td>
+          <td style="text-align:center"><span class="badge ${typeClass}">${type}</span></td>
+          <td style="text-align:center">${badge}</td>
+          <td style="text-align:center">${scoreHtml}</td>
+        </tr>`;
     });
 
+    // คำนวณคะแนนรวมถ่วงน้ำหนัก (Weighted Score)
     var weightedTotal = 0;
-    var chartPoints   = [];
+    var chartPoints = [];
     ['ก่อนกลางภาค','กลางภาค','หลังกลางภาค','ปลายภาค'].forEach(function(lbl) {
-      var s  = catStats[lbl];
+      var s = catStats[lbl];
       var pt = s.max > 0 ? (s.current / s.max) * s.weight : 0;
       weightedTotal += pt;
       chartPoints.push(pt.toFixed(2));
     });
 
+    // คะแนนจิตพิสัย
     var behaviorScore = parseFloat(stInfo.behavior_score !== undefined ? stInfo.behavior_score : 10);
     chartPoints.push(behaviorScore.toFixed(2));
     var grandTotal = weightedTotal + behaviorScore;
 
+    // อัปเดตตัวเลขหน้าจอ
     if ($('final-weighted-score')) {
-        $('final-weighted-score').textContent = grandTotal.toFixed(1);
-        
-        if (grandTotal > 100) {
-            $('final-weighted-score').style.color = 'var(--amber)';
-        } else {
-            $('final-weighted-score').style.color = '#fff';
-        }
+      $('final-weighted-score').textContent = grandTotal.toFixed(1);
+      $('final-weighted-score').style.color = grandTotal >= 50 ? '#fff' : 'var(--red)';
     }
-    $('cnt-all').textContent  = sorted.length;
-    $('cnt-ok').textContent   = countOk;
+    
+    $('cnt-all').textContent = sorted.length;
+    $('cnt-ok').textContent = countOk;
     $('cnt-wait').textContent = countWait;
-    $('cnt-no').textContent   = countNo;
+    $('cnt-no').textContent = countNo;
 
-    if ($('final-weighted-score')) $('final-weighted-score').textContent = grandTotal.toFixed(1);
+    // อัปเดต Progress Bar จิตพิสัย
     if ($('behavior-score-text')) $('behavior-score-text').textContent = behaviorScore + '/15';
     if ($('behavior-progress-fill')) {
       var bhPct = (behaviorScore / 15) * 100;
@@ -1544,16 +1560,18 @@ async function searchStatus() {
       $('behavior-progress-fill').style.background = behaviorScore > 10 ? 'linear-gradient(90deg,var(--purple),#ec4899)' : 'var(--purple)';
     }
 
+    // อัปเดต Progress Bar ความสำเร็จรวม
     var subPct = sorted.length > 0 ? ((countOk + countWait) / sorted.length * 100) : 0;
     if ($('global-progress-fill')) {
       $('global-progress-fill').style.width = subPct + '%';
-      $('global-progress-text').textContent  = subPct.toFixed(0) + '%';
+      $('global-progress-text').textContent = subPct.toFixed(0) + '%';
     }
 
+    // วาดกราฟวงกลม
     updatePieChart(chartPoints);
 
+    // แสดงประวัติการเข้าเรียน (ถ้ามี)
     if (attendance && attendance.length > 0) {
-      // จัดกลุ่มข้อมูลตามวิชา
       const groupedAtt = attendance.reduce((acc, curr) => {
         const subj = curr.subject || 'ไม่ระบุวิชา';
         if (!acc[subj]) acc[subj] = [];
@@ -1561,11 +1579,8 @@ async function searchStatus() {
         return acc;
       }, {});
     
-      // ล้างค่าเก่าใน Container ก่อน (ถ้ามี)
       const attCard = $('st-att-card');
       attCard.innerHTML = '<div class="card-title">📅 ประวัติการเข้าเรียนแยกรายวิชา</div>';
-      
-      // วนลูปสร้างตารางแยกตามวิชา
       for (const subj in groupedAtt) {
         renderAttendanceGrid(subj, groupedAtt[subj]); 
       }
@@ -1577,9 +1592,10 @@ async function searchStatus() {
 
   } catch (e) {
     console.error(e);
-    showToast('เกิดข้อผิดพลาด: ' + e, 'error');
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
   }
 }
+  
 
 function updatePieChart(dataPoints) {
   var ctx = $('scoreChart').getContext('2d');
