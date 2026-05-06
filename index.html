@@ -2556,13 +2556,22 @@ async function saveStudent() {
 
 function detectCategory(title) {
   const t = title.toLowerCase();
-  if (t.includes('ปลายภาค') || t.includes('fin') || t.includes('สอบปลาย')) return 'ปลายภาค';
-  if (t.includes('กลางภาค') || t.includes('mid') || t.includes('สอบกลาง')) return 'กลางภาค';
-  if (t.includes('หลังกลางภาค') || t.includes('aft')) return 'หลังกลางภาค';
-  if (t.includes('ก่อนกลางภาค') || t.includes('bef')) return 'หลังกลางภาค';
+  if (t.includes('ปลายภาค') || t.includes('fin') || t.includes('สอบปลาย')) {
+    return 'ปลายภาค';
+  } 
+  else if (t.includes('กลางภาค') || t.includes('mid') || t.includes('สอบกลาง')) {
+    return 'กลางภาค';
+  } 
+  else if (t.includes('หลังกลางภาค') || t.includes('aft')) {
+    return 'หลังกลางภาค';
+  } 
+  else if (t.includes('ก่อนกลางภาค') || t.includes('bef')) {
+    return 'ก่อนกลางภาค';
+  } 
   return 'ก่อนกลางภาค';
 }
 
+  
 function createDNA() {
   const container = document.getElementById('dna-helix');
   if(!container) return;
