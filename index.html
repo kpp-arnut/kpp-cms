@@ -412,9 +412,9 @@
           🔐 ตรวจงาน
           <span class="cfg-dot" id="cfg-dot"></span>
         </button>
-        <button class="nav-btn" onclick="doLogout()" id="nav-logout" style="display:none; color:var(--red);">
-        🚪 ออกจากระบบ
-        </button>
+        <button class="nav-btn" onclick="doLogout()" id="nav-logout" style="display:none; color:#f87171; margin-left: 12px; border: 1px solid rgba(239,68,68,0.2);">
+            🚪 ออกจากระบบ
+          </button>
       </nav>
     </div>
   </header>
@@ -546,7 +546,6 @@
         <button class="tab-btn"        onclick="adminTab('students')"   id="t-students">👥 นักเรียน</button>
         <button class="tab-btn"        onclick="adminTab('asgn')"       id="t-asgn">📝 งาน</button>
         <button class="tab-btn"        onclick="adminTab('export')"     id="t-export">📥 ดาวน์โหลด</button>
-        <button class="tab-btn" onclick="doLogout()" style="margin-left:auto; color:var(--red); border:1px solid rgba(239,68,68,0.3)">🚪 Logout</button>
       </div>
 
       <!-- TAB: GRADING -->
@@ -1191,8 +1190,13 @@ async function doLogout() {
     await _sb.auth.signOut();
     isAdmin = false;
     currentUser = null;
-    $('nav-logout').style.display = 'none'; // ซ่อนปุ่ม
-    showPage('status'); // กลับไปหน้าแรก
+    
+    // ซ่อนปุ่ม Logout
+    if ($('nav-logout')) $('nav-logout').style.display = 'none';
+    if ($('cfg-dot')) $('cfg-dot').className = 'cfg-dot';
+    
+    // กลับไปหน้าแรกและรีเฟรชเพื่อความสะอาดของข้อมูล
+    showPage('status');
     location.reload(); 
   }
 }
