@@ -821,10 +821,24 @@
 <!-- Add Assignment -->
 <div class="modal-overlay" id="m-add-asgn">
   <div class="modal">
-    <div class="modal-hd">➕ เพิ่มงาน / การสอบ <button class="modal-close" onclick="closeModal('m-add-asgn')">✕</button></div>
+    <div class="modal-hd">
+      <span id="asgn-modal-title">➕ เพิ่มงาน / การสอบ</span> 
+      <button class="modal-close" onclick="closeModal('m-add-asgn')">✕</button>
+    </div>
+    <!-- ซ่อน ID ไว้สำหรับใช้ตอนแก้ไข -->
+    <input type="hidden" id="na-id">
+
     <div class="grid-2 gap-3 mb-3">
       <div style="grid-column:1/-1">
-        <label>หมวดหมู่คะแนน (สัดส่วน) *</label>
+        <label>ชื่องาน *</label>
+        <input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1">
+      </div>
+      <div style="grid-column:1/-1">
+        <label>รายละเอียดงาน (เล็กน้อย)</label>
+        <textarea id="na-desc" style="width:100%; border-radius:10px; padding:10px; font-family:Sarabun; border:2px solid transparent; background:rgba(255,255,255,0.95);" rows="2" placeholder="เช่น ให้นักเรียนวาดภาพวงจรชีวิต..."></textarea>
+      </div>
+      <div>
+        <label>หมวดหมู่คะแนน *</label>
         <select id="na-cat">
           <option value="ก่อนกลางภาค">ก่อนกลางภาค (20%)</option>
           <option value="กลางภาค">กลางภาค (20%)</option>
@@ -832,8 +846,8 @@
           <option value="ปลายภาค">ปลายภาค (30%)</option>
         </select>
       </div>
-      <div style="grid-column:1/-1">
-        <label>รูปแบบงาน/การทดสอบ *</label>
+      <div>
+        <label>รูปแบบ *</label>
         <select id="na-type">
           <option value="เดี่ยว">งานเดี่ยว</option>
           <option value="กลุ่ม">งานกลุ่ม</option>
@@ -842,36 +856,26 @@
           <option value="สอบปลายภาค">สอบปลายภาค</option>
         </select>
       </div>
-      <div style="grid-column:1/-1">
-        <label>ชื่องาน *</label>
-        <input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1 หรือ Midterm Exam">
-      </div>
       <div>
         <label>วิชา *</label>
-        <select id="na-subj-sel" onchange="syncSubjInput(this.value)">
-          <option value="">— เลือกวิชา —</option>
-          <option value="__new__">✏️ เพิ่มวิชาใหม่...</option>
-        </select>
-        <input type="text" id="na-subj" placeholder="พิมพ์ชื่อวิชาใหม่" style="margin-top:6px;display:none">
+        <select id="na-subj-sel" onchange="syncSubjInput(this.value)"></select>
+        <input type="text" id="na-subj" style="margin-top:6px; display:none">
       </div>
       <div>
         <label>ห้องเรียน *</label>
-        <select id="na-room-sel" onchange="syncRoomInput(this.value)">
-          <option value="">— เลือกห้อง —</option>
-          <option value="__new__">✏️ เพิ่มห้องใหม่...</option>
-        </select>
-        <input type="text" id="na-room" placeholder="พิมพ์ชื่อห้องใหม่" style="margin-top:6px;display:none">
+        <select id="na-room-sel" onchange="syncRoomInput(this.value)"></select>
+        <input type="text" id="na-room" style="margin-top:6px; display:none">
       </div>
       <div>
         <label>คะแนนเต็ม</label>
-        <input type="number" id="na-max" value="10" min="1">
+        <input type="number" id="na-max" value="10">
       </div>
       <div>
         <label>เกณฑ์ผ่าน</label>
-        <input type="number" id="na-pass" value="5" min="0">
+        <input type="number" id="na-pass" value="5">
       </div>
     </div>
-    <button class="btn btn-primary w-full btn-lg" onclick="saveAssignment()">💾 บันทึกและสร้างงาน</button>
+    <button class="btn btn-primary w-full btn-lg" onclick="saveAssignment()">💾 บันทึกข้อมูลงาน</button>
   </div>
 </div>
 
@@ -1422,7 +1426,9 @@ async function searchStatus() {
       tbody.innerHTML +=
         '<tr class="' + rowClass + '">' +
         '<td><small class="text-muted">' + cat + '</small></td>' +
-        '<td><strong>' + (a.name || '—') + '</strong></td>' +
+        '<td><strong>' + (a.name || '—') + '</strong>' + 
+(a.description ? '<div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">📝 ' + a.description + '</div>' : '') + 
+'</td>' +
         '<td style="text-align:center"><span class="badge ' + typeClass + '">' + type + '</span></td>' +
         '<td style="text-align:center">' + badge + '</td>' +
         '<td style="text-align:center">' + scoreHtml + '</td>' +
@@ -2072,35 +2078,85 @@ function syncRoomInput(val) {
 function renderAsgnTable() {
   var tb = $('asgn-tbody');
   if (!assignments.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px">ยังไม่มีงาน</td></tr>'; return;
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px">ยังไม่มีงาน</td></tr>'; return;
   }
   tb.innerHTML = assignments.map(function(a) {
     var catClass = { 'ก่อนกลางภาค':'badge-blue', 'กลางภาค':'badge-green', 'หลังกลางภาค':'badge-amber', 'ปลายภาค':'badge-red' }[a.category] || 'badge-blue';
     return '<tr>' +
-      '<td><strong>' + a.name + '</strong><br><small class="text-muted">' + (a.type || '') + '</small></td>' +
+      '<td><strong>' + a.name + '</strong>' + (a.description ? '<br><small style="color:var(--text-dim)">📝 ' + a.description + '</small>' : '') + '</td>' +
       '<td>' + a.subject + '</td>' +
       '<td>' + a.classroom + '</td>' +
-      '<td><span class="badge ' + catClass + '">' + (a.category || 'ก่อนกลางภาค') + '</span></td>' +
-      '<td style="text-align:center"><strong>' + a.max_score + '</strong> <small class="text-muted">(ผ่าน ' + (a.passing_score || 0) + ')</small></td>' +
-      '<td style="text-align:center"><button class="btn btn-sm btn-danger" onclick="delAssignment(\'' + a.id + '\')">🗑️</button></td>' +
+      '<td><span class="badge ' + catClass + '">' + a.category + '</span></td>' +
+      '<td style="text-align:center"><strong>' + a.max_score + '</strong></td>' +
+      '<td style="text-align:center">' +
+        '<button class="btn btn-sm btn-outline" onclick=\'editAssignment(' + JSON.stringify(a) + ')\'>✏️</button> ' +
+        '<button class="btn btn-sm btn-danger" onclick="delAssignment(\'' + a.id + '\')">🗑️</button>' +
+      '</td>' +
       '</tr>';
   }).join('');
 }
 
+  
 async function saveAssignment() {
+  var id = $('na-id').value; // ถ้ามีค่าแสดงว่าเป็นงานเก่า (Edit)
   var subjSel = $('na-subj-sel').value;
-  var subj    = (subjSel === '__new__' || subjSel === '') ? $('na-subj').value.trim() : subjSel;
+  var subj = (subjSel === '__new__' || subjSel === '') ? $('na-subj').value.trim() : subjSel;
   var roomSel = $('na-room-sel').value;
-  var room    = (roomSel === '__new__' || roomSel === '') ? $('na-room').value.trim() : roomSel;
-  var d = { name: $('na-nm').value.trim(), subject: subj, classroom: room, category: $('na-cat').value, max_score: parseFloat($('na-max').value) || 10, passing_score: parseFloat($('na-pass').value) || 0, type: $('na-type').value };
+  var room = (roomSel === '__new__' || roomSel === '') ? $('na-room').value.trim() : roomSel;
+
+  var d = { 
+    name: $('na-nm').value.trim(), 
+    description: $('na-desc').value.trim(), // เพิ่มรายละเอียด
+    subject: subj, 
+    classroom: room, 
+    category: $('na-cat').value, 
+    max_score: parseFloat($('na-max').value) || 10, 
+    passing_score: parseFloat($('na-pass').value) || 0, 
+    type: $('na-type').value 
+  };
+
+  if (id) d.id = id; // ใส่ ID กลับเข้าไปถ้าเป็นการแก้ไข
+
   if (!d.name || !d.subject || !d.classroom) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+
   try {
-    await gasCall('createAssignment', d);
+    // ใช้ upsert เพื่อให้รองรับทั้งเพิ่มใหม่และแก้ไข
+    const { error } = await _sb.from('assignments').upsert(d, { onConflict: 'id' });
+    if (error) throw error;
+
     closeModal('m-add-asgn');
-    showToast('สร้างงานหมวด ' + d.category + ' สำเร็จ', 'success');
+    showToast(id ? 'แก้ไขงานสำเร็จ' : 'สร้างงานสำเร็จ', 'success');
+    
+    // ล้างค่า ID หลังจากปิด Modal
+    $('na-id').value = '';
+    $('asgn-modal-title').textContent = '➕ เพิ่มงาน / การสอบ';
+
     assignments = await gasCall('getAllAssignments');
-    populateDropdowns(); renderAsgnTable();
-  } catch (e) { showToast('เกิดข้อผิดพลาด: ' + e, 'error'); }
+    populateDropdowns(); 
+    renderAsgnTable();
+  } catch (e) { 
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); 
+  }
+}
+
+function editAssignment(a) {
+  populateAsgnModal(); // โหลด Dropdown
+  $('asgn-modal-title').textContent = '✏️ แก้ไขข้อมูลงาน';
+  $('na-id').value = a.id;
+  $('na-nm').value = a.name;
+  $('na-desc').value = a.description || '';
+  $('na-cat').value = a.category;
+  $('na-type').value = a.type || 'เดี่ยว';
+  $('na-max').value = a.max_score;
+  $('na-pass').value = a.passing_score;
+  
+  // ตั้งค่า Select และ Input วิชา/ห้อง
+  $('na-subj-sel').value = a.subject;
+  $('na-subj').value = a.subject;
+  $('na-room-sel').value = a.classroom;
+  $('na-room').value = a.classroom;
+  
+  openModal('m-add-asgn');
 }
 
 async function delAssignment(id) {
