@@ -11,6 +11,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* ─── DESIGN TOKENS ─── */
@@ -560,6 +561,10 @@
           </div>
           <div class="flex gap-3 flex-wrap items-center">
             <button class="btn btn-primary" onclick="loadGrading()">📋 โหลดรายชื่อ</button>
+            <button class="btn btn-outline" onclick="syncFromClassroom()" style="color:#4285F4; border-color:#4285F4;">
+  <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png" style="height:18px; margin-right:8px; vertical-align:middle;">
+  ซิงค์จาก Classroom
+</button>
             <div class="scan-bar flex-1" style="min-width:240px">
               <div style="font-size:.9rem;font-weight:600;color:#065f46">📷 โหมดสแกน QR</div>
               <label class="sw"><input type="checkbox" id="scan-sw" onchange="setScanMode(this.checked)"><span class="sw-slider"></span></label>
@@ -798,11 +803,16 @@
   <div class="modal">
     <div class="modal-hd">➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button></div>
     <div class="grid-2 gap-3 mb-3">
-      <div><label>รหัสนักเรียน *</label><input type="text" id="ns-id" placeholder="เช่น 12345"></div>
-      <div><label>เลขที่</label><input type="number" id="ns-seat" min="1" placeholder="1"></div>
-      <div><label>ชื่อ *</label><input type="text" id="ns-fn" placeholder="ชื่อ"></div>
-      <div><label>สกุล *</label><input type="text" id="ns-ln" placeholder="สกุล"></div>
-      <div style="grid-column:1/-1"><label>ชั้น/ห้อง *</label><input type="text" id="ns-cls" placeholder="เช่น ม.5/1"></div>
+      <div><label>รหัสนักเรียน *</label><input type="text" id="ns-id"></div>
+      <div><label>เลขที่</label><input type="number" id="ns-seat"></div>
+      <div><label>ชื่อ *</label><input type="text" id="ns-fn"></div>
+      <div><label>สกุล *</label><input type="text" id="ns-ln"></div>
+      <div style="grid-column:1/-1"><label>ชั้น/ห้อง *</label><input type="text" id="ns-cls"></div>
+      <!-- ช่องที่เพิ่มใหม่ -->
+      <div style="grid-column:1/-1">
+        <label>อีเมล (สำหรับซิงค์ Google Classroom) *</label>
+        <input type="text" id="ns-email" placeholder="example@school.ac.th">
+      </div>
     </div>
     <button class="btn btn-primary w-full" onclick="saveStudent()">💾 บันทึก</button>
   </div>
@@ -891,6 +901,8 @@
 // ─────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://gfikiopjopxhogrhpcpx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_6pccrfn1Ng_FXHugztRsmw__kW_TtAL';
+const GOOGLE_CLIENT_ID = "292294403643-n756epva6fet5p7clkao3r2damoeai0r.apps.googleusercontent.com";
+let googleAccessToken = null;
 
 // ─────────────────────────────────────────────────────────
 //  SUPABASE CLIENT
@@ -1952,7 +1964,14 @@ async function importFile(input) {
       var ws   = wb.Sheets[wb.SheetNames[0]];
       var rows = XLSX.utils.sheet_to_json(ws);
       var list = rows.map(function(r) {
-        return { id: String(r['รหัสนักเรียน']||r['id']||''), first_name: String(r['ชื่อ']||r['first_name']||''), last_name: String(r['สกุล']||r['last_name']||''), classroom: String(r['ชั้น']||r['classroom']||''), seat_no: parseInt(r['เลขที่']||r['seat_no']||0) };
+        return { 
+          id: String(r['รหัสนักเรียน']||r['id']||''), 
+          first_name: String(r['ชื่อ']||r['first_name']||''), 
+          last_name: String(r['สกุล']||r['last_name']||''), 
+          classroom: String(r['ชั้น']||r['classroom']||''), 
+          seat_no: parseInt(r['เลขที่']||r['seat_no']||0),
+          email: String(r['อีเมล']||r['email']||'') // เพิ่มบรรทัดนี้
+        };
       }).filter(function(s) { return s.id; });
       await gasCall('upsertStudents', list);
       showToast('นำเข้า ' + list.length + ' คนสำเร็จ', 'success');
@@ -1966,10 +1985,13 @@ async function importFile(input) {
 }
 
 function dlTemplate() {
-  var ws = XLSX.utils.aoa_to_sheet([['รหัสนักเรียน','ชื่อ','สกุล','ชั้น','เลขที่'],['12345','สมชาย','ใจดี','ม.5/1','1'],['12346','สมหญิง','รักเรียน','ม.5/1','2']]);
+  var ws = XLSX.utils.aoa_to_sheet([
+    ['รหัสนักเรียน','ชื่อ','สกุล','ชั้น','เลขที่','อีเมล'],
+    ['12345','สมชาย','ใจดี','ม.5/1','1','somchai@school.ac.th']
+  ]);
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'นักเรียน');
-  XLSX.writeFile(wb, 'template_students.xlsx');
+  XLSX.writeFile(wb, 'template_students_with_email.xlsx');
 }
 
 // ─────────────────────────────────────────────────────────
@@ -2218,6 +2240,136 @@ function showPage(name) {
   if (name === 'admin' && isAdmin) {
     initAdmin();
   }
+}
+
+function initGoogleAuth() {
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.students.readonly',
+    callback: (response) => {
+      if (response.access_token) {
+        googleAccessToken = response.access_token;
+        showToast('เชื่อมต่อ Google สำเร็จ!', 'success');
+        syncFromClassroom(); 
+      }
+    },
+  });
+  tokenClient.requestAccessToken();
+}
+
+// 2. ฟังก์ชันซิงค์หลัก
+async function syncFromClassroom() {
+  if (!googleAccessToken) { initGoogleAuth(); return; }
+
+  const currentRoom = $('g-room').value; 
+  if (!currentRoom) { showToast('กรุณาเลือกห้องเรียนก่อนซิงค์', 'warn'); return; }
+
+  try {
+    showToast('🔄 กำลังค้นหาห้องใน Classroom...', 'info');
+
+    // A. หาห้องเรียนที่ชื่อตรงกัน
+    const coursesResp = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
+      headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+    });
+    const coursesData = await coursesResp.json();
+    const targetCourse = coursesData.courses.find(c => c.name.includes(currentRoom));
+
+    if (!targetCourse) {
+      showToast('ไม่พบห้อง ' + currentRoom + ' ใน Classroom', 'error');
+      return;
+    }
+
+    // B. ดึงงานทั้งหมด
+    const workResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork`, {
+      headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+    });
+    const workData = await workResp.json();
+
+    if (!workData.courseWork) { showToast('ไม่พบงานในห้องนี้', 'warn'); return; }
+
+    for (const work of workData.courseWork) {
+      let category = detectCategory(work.title);
+
+      // C. สร้าง/อัปเดตงานใน Supabase (Assignments)
+      const { data: asgn, error: asgnErr } = await _sb.from('assignments').upsert({
+        name: work.title,
+        subject: $('g-subj').value || "วิชาทั่วไป",
+        classroom: currentRoom,
+        category: category,
+        max_score: work.maxPoints || 10,
+        gc_coursework_id: work.id 
+      }, { onConflict: 'gc_coursework_id' }).select().single();
+
+      if (asgnErr) continue;
+
+      // D. ดึงสถานะการส่ง (Submissions)
+      const subResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions`, {
+        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+      });
+      const subData = await subResp.json();
+
+      if (!subData.studentSubmissions) continue;
+
+      // E. ดึงรายชื่อนักเรียนใน Classroom นี้ (เพื่อหา Email)
+      const studentsInClassResp = await fetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students`, {
+        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+      });
+      const studentsData = await studentsInClassResp.json();
+      const googleStudentsMap = {};
+      studentsData.students.forEach(s => googleStudentsMap[s.userId] = s.profile.emailAddress);
+
+      // F. เตรียมข้อมูลเพื่อบันทึกลง Grades
+      const gradeUpdates = subData.studentSubmissions.map(sub => {
+        const studentEmail = googleStudentsMap[sub.userId];
+        const targetStudent = students.find(s => s.email === studentEmail); // แมตช์อีเมล
+
+        if (!targetStudent) return null;
+
+        let status = 'not_sent'; 
+        if (sub.state === 'TURNED_IN') status = 'waiting';
+        if (sub.state === 'RETURNED') status = 'checked';
+
+        return {
+          student_id: targetStudent.id,
+          assignment_id: asgn.id,
+          score: sub.assignedGrade || 0,
+          max_score: work.maxPoints || 10,
+          status: status
+        };
+      }).filter(g => g !== null);
+
+      if (gradeUpdates.length > 0) {
+        await _sb.from('grades').upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
+      }
+    }
+
+    showToast('✅ ซิงค์งานและคะแนนสำเร็จ!', 'success');
+    loadGrading(); 
+
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ฟังก์ชันเสริม: แก้ไข saveStudent เพื่อบันทึก Email
+async function saveStudent() {
+  var d = { 
+    id: $('ns-id').value.trim(), 
+    first_name: $('ns-fn').value.trim(), 
+    last_name: $('ns-ln').value.trim(), 
+    classroom: $('ns-cls').value.trim(), 
+    seat_no: parseInt($('ns-seat').value) || 0,
+    email: $('ns-email').value.trim() // เพิ่มช่องบันทึกอีเมล
+  };
+  if (!d.id || !d.first_name || !d.last_name || !d.classroom || !d.email) { 
+    showToast('กรุณากรอกข้อมูลให้ครบรวมถึงอีเมล', 'error'); return; 
+  }
+  try {
+    await gasCall('upsertStudent', d);
+    closeModal('m-add-st');
+    showToast('บันทึกสำเร็จ', 'success');
+    initAdmin(); // รีโหลดข้อมูลนักเรียนใหม่
+  } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
 }
 </script>
 
