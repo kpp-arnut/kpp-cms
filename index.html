@@ -35,8 +35,6 @@
       --purple:       #a855f7;
       --purple-dark:  #7e22ce;
     }
-
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     body {
       font-family: 'Sarabun', sans-serif;
       background-color: var(--bg-dark);
@@ -51,40 +49,80 @@
       background: radial-gradient(ellipse at 15% 25%, rgba(6,182,212,0.2) 0%, transparent 50%),
                   radial-gradient(ellipse at 85% 75%, rgba(14,165,233,0.15) 0%, transparent 50%);
     }
-.dna-bg {
-      position: absolute;
+
+  /* ─── DNA 3D VERTICAL HELIX ─── */
+    .bg-scene {
+      position: fixed;
       inset: 0;
-      background: linear-gradient(to bottom, #050e30, #0a194a);
-      opacity: 0.6;
+      z-index: 0;
+      background: #050e30; /* พื้นหลังสีเข้ม */
       overflow: hidden;
+      perspective: 1000px;
     }
 
-    /* สร้างตัวเกลียว DNA ด้วย SVG */
-    .dna-bg::before {
+    .dna-container {
+      position: absolute;
+      top: 0;
+      left: 50%; /* วางไว้กลางจอ หรือปรับเป็น 10% ถ้าอยากให้อยู่ด้านข้าง */
+      transform: translateX(-50%);
+      width: 100px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      opacity: 0.4;
+    }
+
+    /* สร้างเม็ด Nucleotide */
+    .dna-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      position: relative;
+      box-shadow: 0 0 10px var(--accent);
+      animation: rotate3d 4s ease-in-out infinite;
+    }
+
+    /* เส้นเชื่อมตรงกลาง */
+    .dna-dot::after {
       content: "";
       position: absolute;
-      width: 200%;
-      height: 200%;
-      top: -50%;
-      left: -50%;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M30,0 Q50,50 30,100 M70,0 Q50,50 70,100' stroke='rgba(34,211,238,0.15)' fill='none' stroke-width='1.5'/%3E%3Ccircle cx='30' cy='10' r='1.5' fill='rgba(34,211,238,0.3)'/%3E%3Ccircle cx='70' cy='10' r='1.5' fill='rgba(34,211,238,0.3)'/%3E%3C/svg%3E");
-      background-size: 150px 150px;
-      animation: dnaRotate 60s linear infinite; /* หมุนช้าๆ 60 วินาทีต่อรอบ */
-      transform-origin: center;
+      width: 80px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), transparent, var(--primary));
+      top: 50%;
+      left: 50%;
+      transform-origin: left;
+      z-index: -1;
+      opacity: 0.3;
     }
 
-    /* Animation สำหรับการหมุน */
-    @keyframes dnaRotate {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
+    /* จุดที่สองของเกลียวคู่ (สลับฝั่ง) */
+    .dna-dot.strand-2 {
+      background: var(--primary);
+      box-shadow: 0 0 10px var(--primary);
+      animation-delay: -2s; /* สั่งให้เริ่มคนละจังหวะเพื่อให้เกิดเกลียว */
     }
 
-    /* เพิ่ม Effect หมอกจางๆ ให้ดูมีมิติ */
+    @keyframes rotate3d {
+      0%, 100% {
+        transform: translateX(-40px) scale(1);
+        z-index: 1;
+      }
+      50% {
+        transform: translateX(40px) scale(0.6);
+        z-index: -1;
+        opacity: 0.5;
+      }
+    }
+
+    /* เพิ่ม Effect แสงฟุ้งรอบๆ */
     .bg-scene::after {
-      content: "";
+      content: '';
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at center, transparent 0%, var(--bg-dark) 85%);
+      background: radial-gradient(circle at center, transparent 20%, #050e30 90%);
       pointer-events: none;
     }
 
@@ -424,7 +462,10 @@
 </head>
 <body>
 
-<div class="bg-scene"><div class="dna-bg"></div></div>
+<div class="dna-bg">
+  <div class="dna-container" id="dna-helix">
+  </div>
+</div>
 
 <div class="app">
 
@@ -2500,12 +2541,42 @@ async function saveStudent() {
 
 function detectCategory(title) {
   const t = title.toLowerCase();
-  if (t.includes('ปลายภาค') || t.includes('final') || t.includes('สอบปลาย')) return 'ปลายภาค';
-  if (t.includes('กลางภาค') || t.includes('midterm') || t.includes('สอบกลาง')) return 'กลางภาค';
-  if (t.includes('หลังกลางภาค') || t.includes('p2')) return 'หลังกลางภาค';
-  if (t.includes('ก่อนกลางภาค') || t.includes('p1')) return 'หลังกลางภาค';
-  return 'ก่อนกลางภาค'; // Default เป็นก่อนกลางภาคปลอดภัยกว่าครับ
+  if (t.includes('ปลายภาค') || t.includes('fin') || t.includes('สอบปลาย')) return 'ปลายภาค';
+  if (t.includes('กลางภาค') || t.includes('mid') || t.includes('สอบกลาง')) return 'กลางภาค';
+  if (t.includes('หลังกลางภาค') || t.includes('aft')) return 'หลังกลางภาค';
+  if (t.includes('ก่อนกลางภาค') || t.includes('bef')) return 'หลังกลางภาค';
+  return 'ก่อนกลางภาค';
 }
+
+function createDNA() {
+  const container = document.getElementById('dna-helix');
+  if(!container) return;
+  
+  const numberOfDots = 20; // จำนวนข้อของเกลียว DNA
+  for (let i = 0; i < numberOfDots; i++) {
+    // สร้างห่อหุ้มแต่ละชั้น
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex justify-center items-center';
+    wrapper.style.height = '5vh';
+
+    // สายที่ 1
+    const dot1 = document.createElement('div');
+    dot1.className = 'dna-dot';
+    dot1.style.animationDelay = `${(i * -0.2)}s`;
+    
+    // สายที่ 2 (เกลียวคู่)
+    const dot2 = document.createElement('div');
+    dot2.className = 'dna-dot strand-2';
+    dot2.style.animationDelay = `${(i * -0.2) - 2}s`;
+
+    wrapper.appendChild(dot1);
+    wrapper.appendChild(dot2);
+    container.appendChild(wrapper);
+  }
+}
+
+// เรียกใช้งานทันทีเมื่อโหลดหน้าเว็บ
+createDNA();
   
 </script>
 
