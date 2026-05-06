@@ -888,11 +888,6 @@
 const SUPABASE_URL = 'https://gfikiopjopxhogrhpcpx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_6pccrfn1Ng_FXHugztRsmw__kW_TtAL';
 
-// Admin credentials (เก็บใน JS เพื่อ GitHub Pages — ไม่มี server-side)
-// ⚠️ หากต้องการความปลอดภัยสูงขึ้น ให้ใช้ Supabase Auth แทน
-const ADMIN_USER = 'admin';
-const ADMIN_PASS = '7827';
-
 // ─────────────────────────────────────────────────────────
 //  SUPABASE CLIENT
 // ─────────────────────────────────────────────────────────
@@ -902,6 +897,7 @@ const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 //  STATE
 // ─────────────────────────────────────────────────────────
 var isAdmin        = false;
+var currentUser = null;
 var students       = [];
 var assignments    = [];
 var gradingRows    = [];
@@ -1125,22 +1121,36 @@ function showPage(name) {
 //  LOGIN — ใช้ username/password แบบ client-side
 // ─────────────────────────────────────────────────────────
 async function doLogin() {
-  var u   = $('l-user').value.trim();
-  var p   = $('l-pass').value;
+  var email = $('l-user').value.trim(); // เปลี่ยนจาก username เป็น email
+  var pass = $('l-pass').value;
   var btn = $('login-btn');
+  
   $('l-err').style.display = 'none';
-  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  btn.disabled = true; 
+  btn.textContent = 'กำลังยืนยันตัวตน...';
+
   try {
-    if (u === ADMIN_USER && p === ADMIN_PASS) {
-      isAdmin = true;
-      closeModal('m-login');
-      initAdmin();
-      showToast('ยินดีต้อนรับคุณครู! 🧬', 'success');
-    } else {
-      $('l-err').style.display = 'block';
-    }
+    // ใช้คำสั่งของ Supabase Auth
+    const { data, error } = await _sb.auth.signInWithPassword({
+      email: email,
+      password: pass,
+    });
+
+    if (error) throw error;
+
+    // ถ้าผ่าน
+    isAdmin = true;
+    currentUser = data.user;
+    closeModal('m-login');
+    initAdmin();
+    showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+  } catch (e) {
+    console.error(e);
+    $('l-err').textContent = '❌ ' + (e.message === 'Invalid login credentials' ? 'อีเมลหรือรหัสผ่านผิด' : e.message);
+    $('l-err').style.display = 'block';
   } finally {
-    btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+    btn.disabled = false; 
+    btn.textContent = 'เข้าสู่ระบบ';
   }
 }
 
