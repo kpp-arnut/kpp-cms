@@ -2085,7 +2085,7 @@ async function exportAttendanceReport() {
       dateCfg.forEach(function(cfg) {
         var rec=attMap[s.id+'_'+cfg.date]; var status=rec?rec.status:'ขาด'; var h=cfg.hours;
         totalH+=h; var weight=0,symbol='ข';
-        if(status==='มา'){symbol='/';weight=1;} else if(status==='ลา'){symbol='ล';weight=1;} else if(status==='สาย'){symbol='ส';weight=0.5;}
+        if(status==='มา'){symbol='/';weight=1;} else if(status==='ลา'){symbol='ล';weight=0.5;} else if(status==='สาย'){symbol='ส';weight=0.5;}
         attendedH+=(h*weight);
         for(var i=1;i<=h;i++) rowData.push(symbol);
       });
