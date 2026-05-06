@@ -778,7 +778,7 @@
 <!-- ════ MODALS ════ -->
 
 <!-- Login -->
-<div class="modal-overlay open" id="m-login">
+<div class="modal-overlay" id="m-login">
   <div class="modal" style="max-width:380px;text-align:center">
     <div style="font-size:3.2rem;margin-bottom:8px">🔐</div>
     <div class="modal-hd" style="justify-content:center;margin-bottom:4px">เข้าสู่ระบบ ADMIN</div>
@@ -2077,15 +2077,23 @@ async function exportAttendanceReport() {
     var dates  = Object.keys(dateHoursMap).sort();
     var header = ['เลขที่','รหัสนักเรียน','ชื่อ-นามสกุล'];
     var dateCfg = [];
-    dates.forEach(function(d) { var h=dateHoursMap[d]; dateCfg.push({date:d,hours:h}); for(var i=1;i<=h;i++) header.push(d+' (ชม.'+i+')'); });
+    dates.forEach(function(d) { 
+      var h = dateHoursMap[d]; 
+      dateCfg.push({date:d,hours:h}); 
+      var dObj = new Date(d);
+      var dateShow = dObj.getDate() + '/' + (dObj.getMonth()+1); // ทำให้หัวตาราง Excel อ่านง่าย
+      for(var i=1;i<=h;i++) header.push(dateShow + ' (ชม.'+i+')'); 
+    });
     header.push('ชม.รวม','มาเรียน(ชม.)','ร้อยละ','ผลลัพธ์');
-    var rows = classStudents.map(function(s) {
+  var rows = classStudents.map(function(s) {
       var rowData = [s.seat_no,s.id,s.first_name+' '+s.last_name];
       var totalH=0,attendedH=0;
       dateCfg.forEach(function(cfg) {
         var rec=attMap[s.id+'_'+cfg.date]; var status=rec?rec.status:'ขาด'; var h=cfg.hours;
         totalH+=h; var weight=0,symbol='ข';
-        if(status==='มา'){symbol='/';weight=1;} else if(status==='ลา'){symbol='ล';weight=0.5;} else if(status==='สาย'){symbol='ส';weight=0.5;}
+        if(status==='มา'){symbol='/';weight=1;} 
+        else if(status==='ลา'){symbol='ล';weight=0.25;} // ลา = 0.25 เพื่อให้เวลาเรียนลดลง
+        else if(status==='สาย'){symbol='ส';weight=0.5;}
         attendedH+=(h*weight);
         for(var i=1;i<=h;i++) rowData.push(symbol);
       });
@@ -2105,18 +2113,51 @@ async function exportAttendanceReport() {
 //  INIT
 // ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async function() {
-  // เช็กว่ามีคนล็อกอินค้างไว้ไหม
+  // 1. เช็ก Session ว่ามีการล็อกอินค้างไว้หรือไม่
   const { data: { session } } = await _sb.auth.getSession();
   if (session) {
     isAdmin = true;
     currentUser = session.user;
-    $('cfg-dot').className = 'cfg-dot ok';
-    $('nav-logout').style.display = 'flex'; // ถ้ามี session ให้โชว์ปุ่ม logout ทันที
+    if ($('cfg-dot')) $('cfg-dot').className = 'cfg-dot ok';
+    if ($('nav-logout')) $('nav-logout').style.display = 'flex';
   }
 
-  adminTab('grading');
-  $('st-id-inp').addEventListener('keydown', function(e) { if (e.key === 'Enter') searchStatus(); });
+  // 2. ตั้งค่าหน้าเริ่มต้นให้เป็นหน้าสถานะ (ตรวจคะแนน) เท่านั้น
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  
+  $('page-status').classList.add('active');
+  $('nav-status').classList.add('active');
+  
+  // 3. เพิ่ม Event ตรวจสอบรหัสนักเรียนด้วยปุ่ม Enter
+  if ($('st-id-inp')) {
+    $('st-id-inp').addEventListener('keydown', function(e) { 
+      if (e.key === 'Enter') searchStatus(); 
+    });
+  }
 });
+
+// แก้ไขฟังก์ชัน showPage เพิ่มเติมเพื่อความปลอดภัย
+function showPage(name) {
+  stopQrScanner();
+  stopAttendanceScanner();
+  
+  // ถ้าจะไปหน้า Admin แต่ยังไม่ได้ล็อกอิน ให้เด้ง Modal ล็อกอินขึ้นมา
+  if (name === 'admin' && !isAdmin) {
+    openModal('m-login');
+    return; // หยุดทำงาน ไม่เปลี่ยนหน้าจนกว่าจะล็อกอินสำเร็จ
+  }
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  
+  $('page-' + name).classList.add('active');
+  $('nav-' + name).classList.add('active');
+  
+  if (name === 'admin' && isAdmin) {
+    initAdmin();
+  }
+}
 </script>
 
 </body>
