@@ -2051,27 +2051,24 @@ async function startGcSync() {
 function _requestGcToken(callback) {
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    // ── scope ครบถ้วน รวม submissions ──
     scope: [
       'https://www.googleapis.com/auth/classroom.courses.readonly',
       'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
-      'https://www.googleapis.com/auth/classroom.coursework.me.readonly',
       'https://www.googleapis.com/auth/classroom.rosters.readonly',
-      'https://www.googleapis.com/auth/classroom.student-submissions.students.readonly'
+      'https://www.googleapis.com/auth/classroom.profile.emails',
+      'https://www.googleapis.com/auth/classroom.profile.photos'
     ].join(' '),
     callback: resp => {
       if (resp.error) {
         showToast('Google Auth ล้มเหลว: ' + resp.error, 'error');
-        const btn = $('gc-start-btn');
-        if (btn) { btn.disabled = false; btn.textContent = '🚀 เชื่อมต่อ Google & เริ่มซิงค์'; }
         return;
       }
       googleAccessToken = resp.access_token;
-      gcLog('เชื่อมต่อ Google สำเร็จ', 'ok');
+      gcLog('เชื่อมต่อ Google สำเร็จ (สิทธิ์ครบถ้วน)', 'ok');
       if (callback) callback();
     }
   });
-  tokenClient.requestAccessToken({ prompt: '' });
+  tokenClient.requestAccessToken({ prompt: 'consent' }); // บังคับให้หน้าต่างขอสิทธิ์เด้งขึ้นมาใหม่
 }
 
 async function _doGcSync(room, subj) {
