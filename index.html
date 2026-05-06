@@ -2500,8 +2500,16 @@ async function syncFromClassroom() {
           if (!targetStudent) return null;
 
           let status = 'not_sent'; 
-          if (sub.state === 'TURNED_IN') status = 'waiting';
-          if (sub.state === 'RETURNED') status = 'checked';
+          
+          // เช็กว่ามีการส่งงานเข้ามาหรือไม่ (ครอบคลุมทั้งส่งแล้ว และกำลังร่าง)
+          if (sub.state === 'TURNED_IN' || sub.state === 'RECLAIMED_BY_STUDENT') {
+              status = 'waiting'; // ขึ้นว่ารอตรวจ
+          } else if (sub.state === 'RETURNED') {
+              status = 'checked'; // ตรวจแล้ว
+          } else if (sub.state === 'NEW' || sub.state === 'CREATED') {
+              // กรณีเด็กแนบงานไว้แต่ลืมกดส่ง ถ้าอยากให้ขึ้นว่ารอตรวจ ให้แก้เป็น 'waiting' ครับ
+              status = 'not_sent'; 
+}
 
           return {
             student_id: targetStudent.id,
