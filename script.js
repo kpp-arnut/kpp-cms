@@ -806,6 +806,40 @@ function prepareAddStudent() {
     openModal('m-add-st');
 }
 
+async function ensureGradeRowsForStudent(studentId, classroom) {
+  // หางานทั้งหมดในห้องนี้
+  const roomAssignments = assignments.filter(a => a.classroom === classroom);
+  if (!roomAssignments.length) return;
+ 
+  // ตรวจว่ามี grade row อยู่แล้วไหม (ป้องกันทับของเดิม)
+  const { data: existingGrades } = await _sb
+    .from('grades')
+    .select('assignment_id')
+    .eq('student_id', studentId)
+    .in('assignment_id', roomAssignments.map(a => a.id));
+ 
+  const existingIds = new Set((existingGrades || []).map(g => g.assignment_id));
+ 
+  // สร้างเฉพาะงานที่ยังไม่มี grade row
+  const newRows = roomAssignments
+    .filter(a => !existingIds.has(a.id))
+    .map(a => ({
+      student_id:    studentId,
+      assignment_id: a.id,
+      score:         null,
+      max_score:     a.max_score,
+      status:        'not_sent'
+    }));
+ 
+  if (newRows.length > 0) {
+    const { error } = await _sb
+      .from('grades')
+      .upsert(newRows, { onConflict: 'student_id,assignment_id', ignoreDuplicates: true });
+    if (error) console.error('ensureGradeRowsForStudent error:', error);
+    else console.log(`✅ สร้าง grade rows ${newRows.length} งาน สำหรับนักเรียน ${studentId}`);
+  }
+}
+ 
 async function saveStudent() {
   const d = {
     id:         $('ns-id').value.trim(),
@@ -818,8 +852,13 @@ async function saveStudent() {
   if (!d.id || !d.first_name || !d.last_name || !d.classroom) {
     showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return;
   }
+ 
   try {
     await gasCall('upsertStudent', d);
+ 
+    // ── สร้าง grade rows สำหรับงานที่มีอยู่แล้วในห้อง ──
+    await ensureGradeRowsForStudent(d.id, d.classroom);
+ 
     closeModal('m-add-st');
     showToast('บันทึกสำเร็จ', 'success');
     students    = await gasCall('getStudents');
@@ -827,7 +866,6 @@ async function saveStudent() {
     populateDropdowns(); renderStudentTable();
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
 }
-
 function editStudent(s) {
     const modalTitle = document.querySelector('#m-add-st .modal-hd');
     if (modalTitle) modalTitle.innerHTML = `✏️ แก้ไขข้อมูลนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
@@ -862,34 +900,36 @@ async function importFile(input) {
   const reader = new FileReader();
   reader.onload = async e => {
     try {
-      const wb   = XLSX.read(e.target.result, { type:'binary' });
+      const wb   = XLSX.read(e.target.result, { type: 'binary' });
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws);
       const list = rows.map(r => ({
-        id:         String(r['รหัสนักเรียน']||r['id']||''),
-        first_name: String(r['ชื่อ']||r['first_name']||''),
-        last_name:  String(r['สกุล']||r['last_name']||''),
-        classroom:  String(r['ชั้น']||r['classroom']||''),
-        seat_no:    parseInt(r['เลขที่']||r['seat_no']||0),
-        email:      String(r['อีเมล']||r['email']||'')
+        id:         String(r['รหัสนักเรียน'] || r['id'] || ''),
+        first_name: String(r['ชื่อ'] || r['first_name'] || ''),
+        last_name:  String(r['สกุล'] || r['last_name'] || ''),
+        classroom:  String(r['ชั้น'] || r['classroom'] || ''),
+        seat_no:    parseInt(r['เลขที่'] || r['seat_no'] || 0),
+        email:      String(r['อีเมล'] || r['email'] || '')
       })).filter(s => s.id);
+ 
       await gasCall('upsertStudents', list);
       showToast('นำเข้า ' + list.length + ' คนสำเร็จ', 'success');
-      students = await gasCall('getStudents'); assignments = await gasCall('getAllAssignments');
+ 
+      // รีโหลด assignments ก่อน เพื่อให้ ensureGradeRows ทำงานถูกต้อง
+      students    = await gasCall('getStudents');
+      assignments = await gasCall('getAllAssignments');
+ 
+      // ── สร้าง grade rows สำหรับทุกคนที่ Import เข้ามา ──
+      showToast('กำลังตั้งค่างานค้าง...', 'info');
+      for (const s of list) {
+        await ensureGradeRowsForStudent(s.id, s.classroom);
+      }
+ 
       populateDropdowns(); renderStudentTable();
+      showToast(`✅ ตั้งค่างานค้างสำเร็จ (${list.length} คน)`, 'success');
     } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
   };
   reader.readAsBinaryString(file); input.value = '';
-}
-
-function dlTemplate() {
-  const ws = XLSX.utils.aoa_to_sheet([
-    ['รหัสนักเรียน','ชื่อ','สกุล','ชั้น','เลขที่','อีเมล'],
-    ['12345','สมชาย','ใจดี','ม.5/1','1','somchai@school.ac.th']
-  ]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'นักเรียน');
-  XLSX.writeFile(wb, 'template_students.xlsx');
 }
 
 // ─── QR CODE ───────────────────────────────────────────────
