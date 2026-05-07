@@ -1,214 +1,177 @@
 :root {
-    --primary: #0ea5e9;
-    --primary-glow: rgba(14, 165, 233, 0.5);
-    --accent: #22d3ee;
-    --accent-glow: rgba(34, 211, 238, 0.5);
-    --green: #10b981;
-    --red: #ef4444;
-    --amber: #f59e0b;
-    --purple: #a855f7;
-    --bg-dark: #020617; /* เข้มขึ้นเพื่อให้ Glow เด่น */
-    --bg-glass: rgba(15, 23, 42, 0.75);
-    --border-glass: rgba(255, 255, 255, 0.1);
-    --radius-lg: 20px;
+    --deep-navy:    #002366;
+    --vibrant-yellow: #FFD700;
+    --energetic-orange: #F39C12;
+    --sky-blue:     #87CEEB;
+    --pure-white:    #FFFFFF;
+    
+    --primary:      var(--sky-blue);
+    --accent:       var(--vibrant-yellow);
+    --green:        #10b981;
+    --red:          #ef4444;
+    --bg-dark:      var(--deep-navy);
+    --bg-glass:     rgba(255, 255, 255, 0.95); /* ใช้ขาวกระจกเพื่อให้สี Navy ด้านหลังดูแพง */
+    --border-glass: rgba(0, 35, 102, 0.1);
+    --radius-lg:    20px;
 }
 
 body {
     font-family: 'Sarabun', sans-serif;
     background-color: var(--bg-dark);
-    color: #f1f5f9;
+    color: var(--deep-navy);
     min-height: 100vh;
     margin: 0;
-    line-height: 1.6;
-    letter-spacing: 0.015em;
 }
 
-/* --- เพิ่มความเริสให้ฉากหลัง --- */
+/* --- DNA ฉากหลัง: ปรับให้ใหญ่และหนาขึ้น --- */
 .bg-scene {
     position: fixed; inset: 0; z-index: 0;
-    background: radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%);
+    background: radial-gradient(circle at center, #003399 0%, var(--deep-navy) 100%);
     overflow: hidden;
 }
 
-.bg-scene::before {
-    content: ''; position: absolute; inset: 0;
-    background-image: 
-        radial-gradient(var(--primary-glow) 1px, transparent 1px),
-        radial-gradient(var(--accent-glow) 1px, transparent 1px);
-    background-size: 40px 40px;
-    background-position: 0 0, 20px 20px;
-    opacity: 0.1; /* ลายตารางจางๆ แบบ High-tech */
-}
-
-/* --- DNA Animation ที่สมจริงขึ้น --- */
 .dna-container {
-    position: absolute; top: 0; left: 80px;
-    width: 60px; height: 100%;
+    position: absolute; top: 0; left: 100px;
+    width: 120px; /* ขยายความกว้าง */
+    height: 100%;
     display: flex; flex-direction: column;
-    justify-content: space-around; opacity: 0.5;
+    justify-content: space-around; opacity: 0.6;
 }
 
 .dna-dot {
-    width: 10px; height: 10px;
-    background: var(--accent); border-radius: 50%;
-    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent-glow);
-    animation: rotate3d-enhanced 3s ease-in-out infinite;
+    width: 20px; height: 20px; /* จุดใหญ่ขึ้นมาก */
+    background: var(--vibrant-yellow); border-radius: 50%;
+    box-shadow: 0 0 20px var(--vibrant-yellow), 0 0 40px rgba(255, 215, 0, 0.5);
+    animation: rotate3d-heavy 4s ease-in-out infinite;
+    position: relative;
+}
+
+/* เส้นเชื่อม DNA ให้หนาขึ้น */
+.dna-dot::after {
+    content: ""; position: absolute;
+    width: 100px; height: 6px; /* เส้นหนาขึ้น */
+    background: linear-gradient(90deg, var(--vibrant-yellow), var(--energetic-orange));
+    top: 50%; left: 50%; transform: translateY(-50%);
+    z-index: -1; opacity: 0.8;
+    border-radius: 10px;
 }
 
 .dna-dot.strand-2 {
-    background: var(--purple);
-    box-shadow: 0 0 15px var(--purple), 0 0 30px rgba(168, 85, 247, 0.4);
-    animation-delay: -1.5s;
+    background: var(--sky-blue);
+    box-shadow: 0 0 20px var(--sky-blue), 0 0 40px rgba(135, 206, 235, 0.5);
+    animation-delay: -2s;
 }
 
-@keyframes rotate3d-enhanced {
-    0%, 100% { transform: translateX(-50px) scale(1.2); opacity: 1; }
-    50% { transform: translateX(50px) scale(0.7); opacity: 0.3; }
+@keyframes rotate3d-heavy {
+    0%, 100% { transform: translateX(-60px) scale(1.3); z-index: 2; opacity: 1; }
+    50% { transform: translateX(60px) scale(0.8); z-index: -1; opacity: 0.4; }
 }
 
-/* --- Header แบบลอยตัว --- */
+/* --- Header & Navigation --- */
 header {
-    position: sticky; top: 15px; z-index: 100;
-    margin: 0 20px;
-    background: rgba(15, 23, 42, 0.8);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--border-glass);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    background: var(--pure-white);
+    border-bottom: 4px solid var(--vibrant-yellow); /* เพิ่มขอบสีเหลืองหนาๆ */
+    padding: 10px 20px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
 }
 
 .logo span {
-    background: linear-gradient(90deg, #fff, var(--accent));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 1.2rem;
+    color: var(--deep-navy);
+    font-size: 1.4rem; font-weight: 800;
 }
 
-/* --- Card & Glassmorphism --- */
+.nav-btn {
+    color: #666; font-weight: 600;
+}
+
+.nav-btn.active {
+    background: var(--energetic-orange) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4) !important;
+}
+
+/* --- Card Style --- */
 .card {
     background: var(--bg-glass);
-    border: 1px solid var(--border-glass);
     border-radius: var(--radius-lg);
-    padding: 28px;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-    transition: transform 0.3s ease, border-color 0.3s ease;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    color: var(--deep-navy);
 }
 
-.card:hover {
-    border-color: var(--primary-glow);
+.card-title {
+    color: var(--deep-navy);
+    border-left: 6px solid var(--energetic-orange);
+    padding-left: 15px;
+    font-weight: 700;
 }
 
 /* --- Hero Section --- */
 .hero {
-    background: linear-gradient(135deg, rgba(14,165,233,0.15) 0%, rgba(168,85,247,0.05) 100%);
-    border: 1px solid rgba(14,165,233,0.2);
-    box-shadow: inset 0 0 20px rgba(14,165,233,0.1);
+    background: linear-gradient(135deg, var(--vibrant-yellow) 0%, var(--energetic-orange) 100%);
+    color: var(--deep-navy);
+    border: none;
 }
 
 .hero h1 {
-    font-weight: 700;
-    text-shadow: 0 0 20px var(--primary-glow);
-    letter-spacing: -0.02em;
+    font-weight: 800;
+    text-shadow: none;
 }
 
-/* --- Inputs & Buttons --- */
-input[type="text"], select {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid var(--border-glass) !important;
-    color: #fff !important;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-input[type="text"]:focus {
-    background: rgba(255,255,255,0.1) !important;
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 15px var(--accent-glow) !important;
-}
-
-.btn {
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.85rem;
-    overflow: hidden;
-    position: relative;
-}
-
+/* --- Buttons --- */
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary), var(--purple));
-    box-shadow: 0 4px 15px rgba(14,165,233,0.4);
+    background: var(--deep-navy);
+    color: #fff;
+    border: 2px solid var(--vibrant-yellow);
 }
 
 .btn-primary:hover {
-    filter: brightness(1.2);
-    box-shadow: 0 6px 20px rgba(14,165,233,0.6);
+    background: #001a4d;
+    transform: scale(1.05);
 }
 
-/* --- ตารางที่ดูสะอาดตาแต่ล้ำ --- */
+.btn-success {
+    background: var(--energetic-orange);
+    border: none;
+}
+
+/* --- Table --- */
 table {
-    border-spacing: 0 8px;
-    border-collapse: separate;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 thead tr {
-    background: transparent !important;
+    background: var(--deep-navy) !important;
 }
 
 th {
-    color: var(--text-dim) !important;
-    font-weight: 500;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
+    color: var(--vibrant-yellow) !important; /* หัวตารางตัวหนังสือเหลืองบนพื้นน้ำเงินเข้ม */
 }
 
-tbody tr {
-    background: rgba(255,255,255,0.03);
-    transition: all 0.2s;
-}
-
-tbody tr td:first-child { border-radius: 12px 0 0 12px; }
-tbody tr td:last-child { border-radius: 0 12px 12px 0; }
-
-tbody tr:hover {
-    background: rgba(255,255,255,0.07);
-    transform: scale(1.01);
-}
-
-/* --- Badge ให้ดูเหมือนไฟนีออน --- */
-.badge {
-    padding: 6px 14px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    backdrop-filter: blur(5px);
-}
-
-.badge-green { 
-    background: rgba(16, 185, 129, 0.1); 
-    color: #4ade80; 
-    border: 1px solid #10b981; 
-    box-shadow: 0 0 10px rgba(16,185,129,0.3);
+tbody tr:hover td {
+    background: rgba(135, 206, 235, 0.1);
 }
 
 /* --- Stat Card --- */
 .stat-card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
-    border: 1px solid var(--border-glass);
+    background: #fff;
+    border-bottom: 4px solid var(--sky-blue);
 }
 
 .stat-num {
-    background: linear-gradient(to bottom, #fff, #94a3b8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 10px rgba(255,255,255,0.3));
+    color: var(--deep-navy);
+    font-size: 2.5rem;
 }
 
-/* --- Scrollbar --- */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--bg-dark); }
-::-webkit-scrollbar-thumb { 
-    background: var(--border-glass); 
-    border-radius: 10px; 
+/* --- Progress Bar --- */
+.prog-bar-bg {
+    background: #eee;
+    height: 14px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--primary-glow); }
+
+.prog-bar-fill {
+    background: linear-gradient(90deg, var(--sky-blue), var(--deep-navy));
+}
