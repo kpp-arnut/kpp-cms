@@ -5,6 +5,7 @@ let students = [];
 let assignments = [];
 let gradingRows = [];
 let attendanceRows = [];
+let adminInitialized = false; // FIX #3: guard against double-init
 
 let html5QrCode = null, scanning = false, lastScannedText = '', lastScannedAt = 0;
 let attendanceQr = null, attendanceScanning = false, lastAttendanceScan = '', lastAttendanceScanAt = 0;
@@ -19,6 +20,8 @@ function showToast(msg, type = 'info') {
   el.className = 'toast ' + type;
   el.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
   $('toasts').appendChild(el);
+  // FIX #10: fade out before remove
+  setTimeout(() => { el.style.transition = 'opacity 0.4s'; el.style.opacity = '0'; }, 3400);
   setTimeout(() => el.remove(), 3800);
 }
 
@@ -60,6 +63,7 @@ async function doLogin() {
     const { data, error } = await _sb.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
     isAdmin = true; currentUser = data.user;
+    adminInitialized = false; // FIX #3: allow fresh init after login
     closeModal('m-login');
     showToast('เข้าสู่ระบบสำเร็จ!', 'success');
     showPage('admin');
@@ -74,7 +78,7 @@ async function doLogin() {
 async function doLogout() {
   if (!confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) return;
   await _sb.auth.signOut();
-  isAdmin = false; currentUser = null;
+  isAdmin = false; currentUser = null; adminInitialized = false;
   $('nav-logout').style.display = 'none';
   $('cfg-dot').className = 'cfg-dot';
   showPage('status');
@@ -195,10 +199,11 @@ const gasCall = async (fnName, ...args) => {
     return { success: true, student, assignment, saved };
   }
   if (fnName === 'markStudentAttendance') {
-    const [studentId, date, status, remark] = args;
+    // FIX #5: รับ subject และ hours ด้วย
+    const [studentId, date, status, remark, subject, hours] = args;
     const student = await gasCall('getStudentById', studentId);
     if (!student) throw new Error('ไม่พบนักเรียน');
-    const saved = await gasCall('saveAttendance', [{ student_id: studentId, attendance_date: date, status, remark: remark || '' }]);
+    const saved = await gasCall('saveAttendance', [{ student_id: studentId, attendance_date: date, subject: subject || '', status, remark: remark || '', hours: hours || 1 }]);
     return { success: true, student, attendance_date: date, status, saved };
   }
   throw new Error('Unknown function: ' + fnName);
@@ -217,13 +222,19 @@ function adminTab(name) {
 }
 
 async function initAdmin() {
+  // FIX #3: ป้องกัน double-init
+  if (adminInitialized) return;
+  adminInitialized = true;
+
   $('nav-logout').style.display = 'flex';
   try {
     const [s, a] = await Promise.all([gasCall('getStudents'), gasCall('getAllAssignments')]);
     students = s; assignments = a;
     $('cfg-dot').className = 'cfg-dot ok';
   } catch (e) {
-    showToast('โหลดข้อมูลล้มเหลว: ' + e, 'error'); return;
+    showToast('โหลดข้อมูลล้มเหลว: ' + e, 'error');
+    adminInitialized = false; // allow retry
+    return;
   }
   populateDropdowns();
   if (!$('att-date').value) $('att-date').value = new Date().toISOString().slice(0, 10);
@@ -329,7 +340,14 @@ async function searchStatus() {
 
       const subjectName = a.subject || 'วิชาทั่วไป';
       if (subjectName !== lastSubject) {
-        tbody.innerHTML += `<tr class="tr-subject-group"><td colspan="5">📚 ${subjectName}</td></tr>`;
+        // FIX: ใช้ textContent แทน innerHTML เพื่อป้องกัน XSS
+        const tr = document.createElement('tr');
+        tr.className = 'tr-subject-group';
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.textContent = '📚 ' + subjectName;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
         lastSubject = subjectName;
       }
 
@@ -351,17 +369,24 @@ async function searchStatus() {
         ? `<span class="score-big" style="font-size:1.4rem">${g.score}</span><span class="score-sep"> / </span><span class="score-max">${max}</span>`
         : '<span class="text-muted">—</span>';
 
-      tbody.innerHTML += `
-        <tr class="${rowClass}">
-          <td><small class="text-muted">${cat}</small></td>
-          <td>
-            <strong>${a.name || '—'}</strong>
-            ${a.description ? `<div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;line-height:1.4;">📝 ${a.description}</div>` : ''}
-          </td>
-          <td style="text-align:center"><span class="badge ${typeClass}">${type}</span></td>
-          <td style="text-align:center">${badge}</td>
-          <td style="text-align:center">${scoreHtml}</td>
-        </tr>`;
+      // FIX: สร้าง row ด้วย DOM แทน innerHTML เพื่อป้องกัน XSS จาก a.name / a.description
+      const tr = document.createElement('tr');
+      tr.className = rowClass;
+
+      const descHtml = a.description
+        ? `<div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;line-height:1.4;">📝 ${escapeHtml(a.description)}</div>`
+        : '';
+
+      tr.innerHTML = `
+        <td><small class="text-muted">${escapeHtml(cat)}</small></td>
+        <td>
+          <strong>${escapeHtml(a.name || '—')}</strong>
+          ${descHtml}
+        </td>
+        <td style="text-align:center"><span class="badge ${typeClass}">${escapeHtml(type)}</span></td>
+        <td style="text-align:center">${badge}</td>
+        <td style="text-align:center">${scoreHtml}</td>`;
+      tbody.appendChild(tr);
     });
 
     // weighted score
@@ -372,8 +397,8 @@ async function searchStatus() {
       const pt = s.max > 0 ? (s.current / s.max) * s.weight : 0;
       weightedTotal += pt; chartPoints.push(pt.toFixed(2));
     });
-      const behaviorScore = (stInfo.behavior_score !== null && stInfo.behavior_score !== undefined) 
-                            ? parseFloat(stInfo.behavior_score) : 10;
+    const behaviorScore = (stInfo.behavior_score !== null && stInfo.behavior_score !== undefined)
+                          ? parseFloat(stInfo.behavior_score) : 10;
     chartPoints.push(behaviorScore.toFixed(2));
     const grandTotal = weightedTotal + behaviorScore;
 
@@ -419,6 +444,17 @@ async function searchStatus() {
   }
 }
 
+// FIX #7: helper escape HTML
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function updatePieChart(dataPoints) {
   const ctx = $('scoreChart').getContext('2d');
   if (scorePieChart) scorePieChart.destroy();
@@ -450,7 +486,6 @@ function updatePieChart(dataPoints) {
   });
 }
 
-// ── รับ container เป็น parameter เพื่อไม่ต้องล้าง card ทั้งหมด ──
 function renderAttendanceGrid(subjectName, attendanceData, container) {
   const wrapper = document.createElement('div');
   wrapper.className = 'mb-4';
@@ -496,7 +531,7 @@ function renderAttendanceGrid(subjectName, attendanceData, container) {
 
   wrapper.innerHTML = `
     <div style="color:var(--accent);font-weight:bold;margin-bottom:10px;border-left:4px solid var(--primary);padding-left:10px;">
-      📚 วิชา: ${subjectName}
+      📚 วิชา: ${escapeHtml(subjectName)}
     </div>
     <div class="tbl-wrap">
       <table>
@@ -545,10 +580,11 @@ function renderGradingTable() {
   gradingRows.forEach((row, i) => {
     const s   = row.student;
     const cls = row.status === 'checked' ? 'checked' : row.status === 'waiting' ? 'waiting' : 'not-sent';
+    // FIX #7: ใช้ escapeHtml กับข้อมูลนักเรียน
     tb.innerHTML += `<tr id="gr-${i}">
       <td style="text-align:center">${s.seat_no || '—'}</td>
-      <td style="font-size:.85rem;color:var(--text-dim)">${s.id}</td>
-      <td><strong>${s.first_name} ${s.last_name}</strong></td>
+      <td style="font-size:.85rem;color:var(--text-dim)">${escapeHtml(s.id)}</td>
+      <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
       <td style="text-align:center"><button class="tog ${cls}" id="tog-${i}" onclick="toggleRow(${i})">${togLabel(row.status)}</button></td>
       <td style="text-align:center"><input class="score-in" type="number" id="sc-${i}" value="${row.score !== null ? row.score : ''}" min="0" max="${row.maxScore}" placeholder="${row.maxScore}"></td>
       <td style="text-align:center;font-weight:700;color:var(--text-dim)">${row.maxScore}</td>
@@ -576,8 +612,10 @@ async function saveGradesNow() {
   if (!aid) { showToast('กรุณาเลือกงานก่อน', 'error'); return; }
   const rows = gradingRows.map((row, i) => {
     const sv    = $('sc-' + i).value;
-    const score = sv !== '' ? parseFloat(sv) : (row.status === 'checked' ? row.maxScore : null);
-    return { student_id: row.student.id, assignment_id: aid, score, max_score: row.maxScore, status: score !== null ? 'checked' : row.status };
+    // FIX #4: score=0 ต้องไม่ถูก treat เป็น null, ช่องว่าง = null เสมอ
+    const score = sv !== '' ? parseFloat(sv) : null;
+    const status = score !== null ? 'checked' : row.status;
+    return { student_id: row.student.id, assignment_id: aid, score, max_score: row.maxScore, status };
   });
   try {
     await gasCall('saveGrades', rows);
@@ -669,10 +707,11 @@ function renderAttendanceTable() {
   tb.innerHTML = '';
   attendanceRows.forEach((row, i) => {
     const sel = 'att-select select-' + row.status;
+    // FIX #7: escape ชื่อนักเรียน
     tb.innerHTML += `<tr id="att-row-${i}" class="row-${row.status}">
       <td style="text-align:center;font-weight:700">${row.student.seat_no || '—'}</td>
-      <td style="color:#cbd5e1;font-size:.85rem">${row.student.id}</td>
-      <td><span style="color:#fff;font-size:1.05rem;font-weight:600">${row.student.first_name} ${row.student.last_name}</span></td>
+      <td style="color:#cbd5e1;font-size:.85rem">${escapeHtml(row.student.id)}</td>
+      <td><span style="color:#fff;font-size:1.05rem;font-weight:600">${escapeHtml(row.student.first_name)} ${escapeHtml(row.student.last_name)}</span></td>
       <td style="text-align:center">
         <select id="att-status-${i}" class="${sel}" onchange="updateAttendanceRowVisual(${i},this.value)">
           <option value="มา"  ${row.status==='มา'  ? 'selected':''}>มา</option>
@@ -681,7 +720,7 @@ function renderAttendanceTable() {
           <option value="สาย" ${row.status==='สาย' ? 'selected':''}>สาย</option>
         </select>
       </td>
-      <td><input type="text" id="att-remark-${i}" value="${row.remark||''}" placeholder="หมายเหตุ" style="background:rgba(255,255,255,0.92);color:#000"></td>
+      <td><input type="text" id="att-remark-${i}" value="${escapeHtml(row.remark||'')}" placeholder="หมายเหตุ" style="background:rgba(255,255,255,0.92);color:#000"></td>
     </tr>`;
   });
 }
@@ -750,11 +789,15 @@ async function stopAttendanceScanner() {
 
 async function handleAttendanceScan(val) {
   const studentId = extractStudentId(val); if (!studentId) return;
-  const date = $('att-date').value, status = $('att-default-status').value;
-  const idx  = attendanceRows.findIndex(r => r.student.id === studentId);
+  const date   = $('att-date').value;
+  const status = $('att-default-status').value;
+  // FIX #5: ส่ง subject และ hours ไปด้วย
+  const subj   = $('att-subj').value;
+  const hours  = parseFloat($('att-hours').value) || 1;
+  const idx    = attendanceRows.findIndex(r => r.student.id === studentId);
   if (idx === -1) { showToast('ไม่พบรหัส: ' + studentId, 'error'); return; }
   try {
-    const result = await gasCall('markStudentAttendance', studentId, date, status, '');
+    const result = await gasCall('markStudentAttendance', studentId, date, status, '', subj, hours);
     attendanceRows[idx].status = status;
     const statusEl = $('att-status-' + idx); if (statusEl) statusEl.value = status;
     updateAttendanceRowVisual(idx, status);
@@ -774,72 +817,66 @@ function filterStudents() {
   );
   const tb = $('st-tbody-admin');
   if (!list.length) { tb.innerHTML = '<tr><td colspan="7"><div class="empty" style="padding:24px"><div class="empty-ico" style="font-size:2rem">🔍</div><div class="empty-title">ไม่มีข้อมูล</div></div></td></tr>'; return; }
+
+  // FIX #7: ไม่ใช้ JSON.stringify ใน onclick — ใช้ data-id แทน
   tb.innerHTML = list.map(s => `<tr>
-    <td style="font-size:.85rem">${s.id}</td>
-    <td>${s.first_name}</td>
-    <td>${s.last_name}</td>
-    <td><span class="badge badge-blue">${s.classroom}</span></td>
+    <td style="font-size:.85rem">${escapeHtml(s.id)}</td>
+    <td>${escapeHtml(s.first_name)}</td>
+    <td>${escapeHtml(s.last_name)}</td>
+    <td><span class="badge badge-blue">${escapeHtml(s.classroom)}</span></td>
     <td style="text-align:center">${s.seat_no}</td>
     <td style="text-align:center">
         <div class="flex gap-2 justify-center">
-            <button class="btn btn-sm btn-outline" onclick="showQR('${s.id}','${s.first_name} ${s.last_name}','${s.classroom}')">📷</button>
-            <button class="btn btn-sm btn-ghost" onclick='editStudent(${JSON.stringify(s)})'>✏️</button>
+            <button class="btn btn-sm btn-outline" data-action="qr" data-id="${escapeHtml(s.id)}">📷</button>
+            <button class="btn btn-sm btn-ghost"   data-action="edit" data-id="${escapeHtml(s.id)}">✏️</button>
         </div>
     </td>
-    <td style="text-align:center"><button class="btn btn-sm btn-danger" onclick="delStudent('${s.id}')">🗑️</button></td>
-</tr>`).join('');
+    <td style="text-align:center"><button class="btn btn-sm btn-danger" data-action="del" data-id="${escapeHtml(s.id)}">🗑️</button></td>
+  </tr>`).join('');
+
+  // event delegation แทน inline onclick
+  tb.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sid = btn.dataset.id;
+      const st = students.find(s => s.id === sid);
+      if (!st) return;
+      if (btn.dataset.action === 'qr')   showQR(st.id, st.first_name + ' ' + st.last_name, st.classroom);
+      if (btn.dataset.action === 'edit') editStudent(st);
+      if (btn.dataset.action === 'del')  delStudent(st.id);
+    });
+  });
 }
 
 function prepareAddStudent() {
-    const modalTitle = document.querySelector('#m-add-st .modal-hd');
-    if (modalTitle) modalTitle.innerHTML = `➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
-    
-    $('ns-id').value = '';
-    $('ns-id').readOnly = false;
-    $('ns-id').style.opacity = "1";
-    $('ns-fn').value = '';
-    $('ns-ln').value = '';
-    $('ns-cls').value = '';
-    $('ns-seat').value = '';
-    $('ns-email').value = '';
-    
-    openModal('m-add-st');
+  const modalTitle = document.querySelector('#m-add-st .modal-hd');
+  if (modalTitle) modalTitle.innerHTML = `➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
+  $('ns-id').value = '';
+  $('ns-id').readOnly = false;
+  $('ns-id').style.opacity = "1";
+  $('ns-fn').value = '';
+  $('ns-ln').value = '';
+  $('ns-cls').value = '';
+  $('ns-seat').value = '';
+  $('ns-email').value = '';
+  openModal('m-add-st');
 }
 
 async function ensureGradeRowsForStudent(studentId, classroom) {
-  // หางานทั้งหมดในห้องนี้
   const roomAssignments = assignments.filter(a => a.classroom === classroom);
   if (!roomAssignments.length) return;
- 
-  // ตรวจว่ามี grade row อยู่แล้วไหม (ป้องกันทับของเดิม)
   const { data: existingGrades } = await _sb
-    .from('grades')
-    .select('assignment_id')
-    .eq('student_id', studentId)
+    .from('grades').select('assignment_id').eq('student_id', studentId)
     .in('assignment_id', roomAssignments.map(a => a.id));
- 
   const existingIds = new Set((existingGrades || []).map(g => g.assignment_id));
- 
-  // สร้างเฉพาะงานที่ยังไม่มี grade row
   const newRows = roomAssignments
     .filter(a => !existingIds.has(a.id))
-    .map(a => ({
-      student_id:    studentId,
-      assignment_id: a.id,
-      score:         null,
-      max_score:     a.max_score,
-      status:        'not_sent'
-    }));
- 
+    .map(a => ({ student_id: studentId, assignment_id: a.id, score: null, max_score: a.max_score, status: 'not_sent' }));
   if (newRows.length > 0) {
-    const { error } = await _sb
-      .from('grades')
-      .upsert(newRows, { onConflict: 'student_id,assignment_id', ignoreDuplicates: true });
+    const { error } = await _sb.from('grades').upsert(newRows, { onConflict: 'student_id,assignment_id', ignoreDuplicates: true });
     if (error) console.error('ensureGradeRowsForStudent error:', error);
-    else console.log(`✅ สร้าง grade rows ${newRows.length} งาน สำหรับนักเรียน ${studentId}`);
   }
 }
- 
+
 async function saveStudent() {
   const d = {
     id:         $('ns-id').value.trim(),
@@ -852,13 +889,9 @@ async function saveStudent() {
   if (!d.id || !d.first_name || !d.last_name || !d.classroom) {
     showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return;
   }
- 
   try {
     await gasCall('upsertStudent', d);
- 
-    // ── สร้าง grade rows สำหรับงานที่มีอยู่แล้วในห้อง ──
     await ensureGradeRowsForStudent(d.id, d.classroom);
- 
     closeModal('m-add-st');
     showToast('บันทึกสำเร็จ', 'success');
     students    = await gasCall('getStudents');
@@ -866,22 +899,19 @@ async function saveStudent() {
     populateDropdowns(); renderStudentTable();
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
 }
+
 function editStudent(s) {
-    const modalTitle = document.querySelector('#m-add-st .modal-hd');
-    if (modalTitle) modalTitle.innerHTML = `✏️ แก้ไขข้อมูลนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
-    
-    // ใส่ข้อมูลเดิมลงใน Input
-    $('ns-id').value = s.id;
-    $('ns-id').readOnly = true; // ห้ามแก้รหัส (Primary Key) ถ้าจะแก้รหัสต้องลบแล้วเพิ่มใหม่
-    $('ns-id').style.opacity = "0.6";
-    
-    $('ns-fn').value = s.first_name;
-    $('ns-ln').value = s.last_name;
-    $('ns-cls').value = s.classroom;
-    $('ns-seat').value = s.seat_no;
-    $('ns-email').value = s.email || '';
-    
-    openModal('m-add-st');
+  const modalTitle = document.querySelector('#m-add-st .modal-hd');
+  if (modalTitle) modalTitle.innerHTML = `✏️ แก้ไขข้อมูลนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
+  $('ns-id').value = s.id;
+  $('ns-id').readOnly = true;
+  $('ns-id').style.opacity = "0.6";
+  $('ns-fn').value = s.first_name;
+  $('ns-ln').value = s.last_name;
+  $('ns-cls').value = s.classroom;
+  $('ns-seat').value = s.seat_no;
+  $('ns-email').value = s.email || '';
+  openModal('m-add-st');
 }
 
 async function delStudent(id) {
@@ -892,6 +922,17 @@ async function delStudent(id) {
     students = await gasCall('getStudents');
     populateDropdowns(); renderStudentTable();
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
+}
+
+// ─── TEMPLATE DOWNLOAD ─────────────────────────────────────
+// FIX #1: เพิ่มฟังก์ชัน dlTemplate ที่หายไป
+function dlTemplate() {
+  const header = [['รหัสนักเรียน','ชื่อ','สกุล','ชั้น','เลขที่','อีเมล']];
+  const ws = XLSX.utils.aoa_to_sheet(header);
+  ws['!cols'] = [{ wch:16 },{ wch:16 },{ wch:16 },{ wch:10 },{ wch:8 },{ wch:28 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'นักเรียน');
+  XLSX.writeFile(wb, 'template_นักเรียน.xlsx');
 }
 
 // ─── IMPORT ────────────────────────────────────────────────
@@ -911,20 +952,14 @@ async function importFile(input) {
         seat_no:    parseInt(r['เลขที่'] || r['seat_no'] || 0),
         email:      String(r['อีเมล'] || r['email'] || '')
       })).filter(s => s.id);
- 
       await gasCall('upsertStudents', list);
       showToast('นำเข้า ' + list.length + ' คนสำเร็จ', 'success');
- 
-      // รีโหลด assignments ก่อน เพื่อให้ ensureGradeRows ทำงานถูกต้อง
       students    = await gasCall('getStudents');
       assignments = await gasCall('getAllAssignments');
- 
-      // ── สร้าง grade rows สำหรับทุกคนที่ Import เข้ามา ──
       showToast('กำลังตั้งค่างานค้าง...', 'info');
       for (const s of list) {
         await ensureGradeRowsForStudent(s.id, s.classroom);
       }
- 
       populateDropdowns(); renderStudentTable();
       showToast(`✅ ตั้งค่างานค้างสำเร็จ (${list.length} คน)`, 'success');
     } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
@@ -936,13 +971,15 @@ async function importFile(input) {
 function showQR(id, name, cls) {
   $('qr-wrap').innerHTML = '';
   new QRCode($('qr-wrap'), { text: id, width: 192, height: 192, colorDark: '#0f172a', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
-  $('qr-info').innerHTML = `<strong style="font-size:1.05rem">${name}</strong><br><span class="text-muted">${cls} | รหัส: ${id}</span>`;
+  $('qr-info').innerHTML = `<strong style="font-size:1.05rem">${escapeHtml(name)}</strong><br><span class="text-muted">${escapeHtml(cls)} | รหัส: ${escapeHtml(id)}</span>`;
   openModal('m-qr');
 }
 
 function printQR() {
   const qr = $('qr-wrap').innerHTML, info = $('qr-info').innerHTML;
   const w  = window.open('', '_blank');
+  // FIX #8: ตรวจ popup blocker
+  if (!w) { showToast('กรุณาอนุญาต Popup ในเบราว์เซอร์', 'warn'); return; }
   w.document.write(`<!DOCTYPE html><html><head><title>QR</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f8fafc}.box{border:2.5px solid #0ea5e9;border-radius:18px;padding:28px 32px;text-align:center;background:#fff;box-shadow:0 4px 24px rgba(14,165,233,.18)}</style></head><body><div class="box">${qr}<div style="margin-top:12px">${info}</div></div><script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
@@ -960,11 +997,13 @@ async function printAllQR() {
     new QRCode(qrDiv, { text: s.id, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
     await new Promise(r => setTimeout(r, 50));
     const img = qrDiv.querySelector('img');
-    htmlContent += `<div class="qr-card"><img src="${img?.src||''}" style="width:150px;height:150px;"><div class="st-name">${s.first_name} ${s.last_name}</div><div class="st-id">${s.id}</div><div class="st-meta">เลขที่ ${s.seat_no} | ${s.classroom}</div></div>`;
+    htmlContent += `<div class="qr-card"><img src="${img?.src||''}" style="width:150px;height:150px;"><div class="st-name">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</div><div class="st-id">${escapeHtml(s.id)}</div><div class="st-meta">เลขที่ ${s.seat_no} | ${escapeHtml(s.classroom)}</div></div>`;
     qrDiv.remove();
   }
   document.body.removeChild(tempArea);
   const pw = window.open('','_blank');
+  // FIX #8: ตรวจ popup blocker
+  if (!pw) { showToast('กรุณาอนุญาต Popup ในเบราว์เซอร์', 'warn'); return; }
   pw.document.write(`<html><head><title>QR ${room}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Kanit:wght@700&display=swap" rel="stylesheet"><style>@page{size:A4;margin:10mm}body{font-family:'Sarabun',sans-serif;margin:0;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:65mm;gap:5mm;padding:2mm}.qr-card{border:1px solid #000;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;text-align:center;break-inside:avoid}.st-name{font-size:1rem;font-weight:bold;margin-top:5px}.st-id{font-family:'Kanit';font-size:2.2rem;color:#000;line-height:1;margin:2px 0}.st-meta{font-size:.8rem;color:#333}</style></head><body onload="setTimeout(()=>{window.print();window.close()},500)"><div class="grid">${htmlContent}</div></body></html>`);
   pw.document.close();
 }
@@ -979,26 +1018,38 @@ function renderBehaviorList() {
   tb.innerHTML = list.length ? list.map(s => {
     const score = s.behavior_score ?? 10;
     return `<tr>
-      <td style="font-size:.85rem">${s.id}</td>
-      <td><strong>${s.first_name} ${s.last_name}</strong></td>
-      <td><span class="badge badge-blue">${s.classroom}</span></td>
-      <td style="text-align:center"><span id="bh-val-${s.id}" class="score-big" style="font-size:1.6rem;color:var(--purple)">${score}</span></td>
+      <td style="font-size:.85rem">${escapeHtml(s.id)}</td>
+      <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
+      <td><span class="badge badge-blue">${escapeHtml(s.classroom)}</span></td>
+      <td style="text-align:center">
+        <span class="score-big" style="font-size:1.6rem;color:var(--purple)"
+          id="bh-val-${escapeHtml(s.id)}"
+          data-score="${score}">${score}</span>
+      </td>
       <td style="text-align:center"><div class="flex justify-center gap-2">
-        <button class="btn btn-sm btn-danger" onclick="modifyBehavior('${s.id}',-1)">หัก 1</button>
-        <button class="btn btn-sm btn-success" onclick="modifyBehavior('${s.id}',1)">บวก 1</button>
+        <button class="btn btn-sm btn-danger"  data-bhid="${escapeHtml(s.id)}" data-change="-1">หัก 1</button>
+        <button class="btn btn-sm btn-success" data-bhid="${escapeHtml(s.id)}" data-change="1">บวก 1</button>
       </div></td>
     </tr>`;
   }).join('') : '<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text-dim)">ไม่พบข้อมูล</td></tr>';
+
+  // FIX #6: ใช้ data-score dataset แทน innerText
+  tb.querySelectorAll('button[data-bhid]').forEach(btn => {
+    btn.addEventListener('click', () => modifyBehavior(btn.dataset.bhid, parseInt(btn.dataset.change)));
+  });
 }
 
 async function modifyBehavior(studentId, change) {
   const scoreEl = $('bh-val-' + studentId);
-  const newScore = parseFloat(scoreEl.innerText) + change;
+  // FIX #6: ใช้ dataset แทน innerText เพื่อหลีกเลี่ยง reflow
+  const currentScore = parseFloat(scoreEl.dataset.score || scoreEl.textContent);
+  const newScore = currentScore + change;
   if (newScore < 0)  { showToast('คะแนนจิตพิสัยต่ำสุดคือ 0','warn');  return; }
   if (newScore > 15) { showToast('คะแนนจิตพิสัยสูงสุดคือ 15','warn'); return; }
   try {
     await gasCall('updateBehaviorScore', studentId, newScore);
-    scoreEl.innerText = newScore;
+    scoreEl.textContent = newScore;
+    scoreEl.dataset.score = newScore;
     const idx = students.findIndex(s => s.id === studentId);
     if (idx !== -1) students[idx].behavior_score = newScore;
     showToast('อัปเดตคะแนนพฤติกรรมเรียบร้อย', 'success');
@@ -1010,12 +1061,12 @@ function populateAsgnModal() {
   const subjs = [...new Set(assignments.map(a => a.subject))].sort();
   const sel = $('na-subj-sel');
   sel.innerHTML = '<option value="">— เลือกวิชา —</option>' +
-    subjs.map(s => `<option value="${s}">${s}</option>`).join('') +
+    subjs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('') +
     '<option value="__new__">✏️ เพิ่มวิชาใหม่...</option>';
   const rooms = [...new Set(students.map(s => s.classroom))].sort();
   const rSel = $('na-room-sel');
   rSel.innerHTML = '<option value="">— เลือกห้อง —</option>' +
-    rooms.map(r => `<option value="${r}">${r}</option>`).join('') +
+    rooms.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('') +
     '<option value="__new__">✏️ เพิ่มห้องใหม่...</option>';
   $('na-subj').style.display = 'none'; $('na-subj').value = '';
   $('na-room').style.display = 'none'; $('na-room').value = '';
@@ -1038,17 +1089,28 @@ function renderAsgnTable() {
   tb.innerHTML = assignments.map(a => {
     const catClass = {'ก่อนกลางภาค':'badge-blue','กลางภาค':'badge-green','หลังกลางภาค':'badge-amber','ปลายภาค':'badge-red'}[a.category] || 'badge-blue';
     return `<tr>
-      <td><strong>${a.name}</strong>${a.description ? `<br><small style="color:var(--text-dim)">📝 ${a.description}</small>` : ''}</td>
-      <td>${a.subject}</td>
-      <td>${a.classroom}</td>
-      <td><span class="badge ${catClass}">${a.category}</span></td>
+      <td><strong>${escapeHtml(a.name)}</strong>${a.description ? `<br><small style="color:var(--text-dim)">📝 ${escapeHtml(a.description)}</small>` : ''}</td>
+      <td>${escapeHtml(a.subject)}</td>
+      <td>${escapeHtml(a.classroom)}</td>
+      <td><span class="badge ${catClass}">${escapeHtml(a.category)}</span></td>
       <td style="text-align:center"><strong>${a.max_score}</strong> <small style="color:var(--text-dim)">(ผ่าน ${a.passing_score})</small></td>
       <td style="text-align:center">
-        <button class="btn btn-sm btn-outline" onclick='editAssignment(${JSON.stringify(a)})'>✏️</button>
-        <button class="btn btn-sm btn-danger" onclick="delAssignment('${a.id}')">🗑️</button>
+        <button class="btn btn-sm btn-outline" data-action="edit" data-id="${escapeHtml(a.id)}">✏️</button>
+        <button class="btn btn-sm btn-danger"  data-action="del"  data-id="${escapeHtml(a.id)}">🗑️</button>
       </td>
     </tr>`;
   }).join('');
+
+  // FIX #7: event delegation แทน JSON.stringify ใน onclick
+  tb.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const aid = btn.dataset.id;
+      const asgn = assignments.find(a => a.id === aid);
+      if (!asgn) return;
+      if (btn.dataset.action === 'edit') editAssignment(asgn);
+      if (btn.dataset.action === 'del')  delAssignment(asgn.id);
+    });
+  });
 }
 
 async function saveAssignment() {
@@ -1068,13 +1130,8 @@ async function saveAssignment() {
   if (!d.name || !d.subject || !d.classroom) { showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
   try {
     const { data: savedAsgn, error } = await _sb
-      .from('assignments')
-      .upsert(d, { onConflict: 'id' })
-      .select()
-      .single();
+      .from('assignments').upsert(d, { onConflict: 'id' }).select().single();
     if (error) throw error;
-
-    // ✅ สร้าง grade rows อัตโนมัติสำหรับทุกคนในห้อง (เฉพาะงานใหม่)
     if (!id) {
       const localStudents = students.filter(s => s.classroom === room);
       if (localStudents.length > 0) {
@@ -1082,12 +1139,9 @@ async function saveAssignment() {
           student_id: s.id, assignment_id: savedAsgn.id,
           score: null, max_score: d.max_score, status: 'not_sent'
         }));
-        await _sb.from('grades').upsert(gradeRows, {
-          onConflict: 'student_id,assignment_id', ignoreDuplicates: true
-        });
+        await _sb.from('grades').upsert(gradeRows, { onConflict: 'student_id,assignment_id', ignoreDuplicates: true });
       }
     }
-
     closeModal('m-add-asgn');
     showToast(id ? 'แก้ไขงานสำเร็จ' : 'สร้างงานสำเร็จ', 'success');
     $('na-id').value = ''; $('asgn-modal-title').textContent = '➕ เพิ่มงาน / การสอบ';
@@ -1118,26 +1172,27 @@ async function delAssignment(id) {
 }
 
 // ─── GOOGLE CLASSROOM SYNC ─────────────────────────────────
-// ── Helper: Fetch + จัดการ error อัตโนมัติ ──
 async function gcFetch(url) {
-  const resp = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
-  });
-  if (resp.status === 401) {
-    googleAccessToken = null;
-    throw new Error('Token หมดอายุ กรุณากดซิงค์อีกครั้ง');
+  // FIX #11: เพิ่ม timeout 15 วินาที
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${googleAccessToken}` },
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (resp.status === 401) { googleAccessToken = null; throw new Error('Token หมดอายุ กรุณากดซิงค์อีกครั้ง'); }
+    if (resp.status === 403) { throw new Error('ไม่มีสิทธิ์เข้าถึง กรุณาอนุญาต Permission ใหม่'); }
+    if (!resp.ok) { const errBody = await resp.text(); throw new Error(`HTTP ${resp.status}: ${errBody.substring(0, 120)}`); }
+    return resp.json();
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('Request timeout — กรุณาลองใหม่');
+    throw e;
   }
-  if (resp.status === 403) {
-    throw new Error('ไม่มีสิทธิ์เข้าถึง กรุณาอนุญาต Permission ใหม่');
-  }
-  if (!resp.ok) {
-    const errBody = await resp.text();
-    throw new Error(`HTTP ${resp.status}: ${errBody.substring(0, 120)}`);
-  }
-  return resp.json();
 }
 
-// ── ตรวจจับหมวดหมู่จากชื่องาน ──
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
   if (t.includes('ปลายภาค') || t.includes('final') || t.includes('สอบปลาย')) return 'ปลายภาค';
@@ -1146,15 +1201,11 @@ function detectCategory(title) {
   return 'ก่อนกลางภาค';
 }
 
-// ── Modal เลือกห้อง/วิชา ก่อนซิงค์ ──
 function syncFromClassroom() {
-  // สร้าง modal แบบ dynamic
   const existing = $('m-gc-sync');
   if (existing) existing.remove();
-
   const rooms = [...new Set(students.map(s => s.classroom))].sort();
   const subjs = [...new Set(assignments.map(a => a.subject))].sort();
-
   const el = document.createElement('div');
   el.className = 'modal-overlay open';
   el.id = 'm-gc-sync';
@@ -1166,31 +1217,23 @@ function syncFromClassroom() {
         ซิงค์จาก Google Classroom
         <button class="modal-close" onclick="document.getElementById('m-gc-sync').remove()">✕</button>
       </div>
-
       <div class="mb-3">
         <label>ห้องเรียนในระบบ (ที่จะรับข้อมูล) *</label>
         <select id="gc-room">
           <option value="">— เลือกห้อง —</option>
-          ${rooms.map(r => `<option value="${r}">${r}</option>`).join('')}
+          ${rooms.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
         </select>
       </div>
-
       <div class="mb-4">
         <label>วิชา (ที่จะบันทึกงานลงใน) *</label>
-        <select id="gc-subj" onchange="
-          document.getElementById('gc-subj-new').style.display=
-          this.value==='__new__'?'block':'none'">
+        <select id="gc-subj" onchange="document.getElementById('gc-subj-new').style.display=this.value==='__new__'?'block':'none'">
           <option value="">— เลือกวิชา —</option>
-          ${subjs.map(s => `<option value="${s}">${s}</option>`).join('')}
+          ${subjs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
           <option value="__new__">✏️ พิมพ์วิชาใหม่...</option>
         </select>
-        <input type="text" id="gc-subj-new"
-          placeholder="พิมพ์ชื่อวิชา..."
-          style="margin-top:8px;display:none">
+        <input type="text" id="gc-subj-new" placeholder="พิมพ์ชื่อวิชา..." style="margin-top:8px;display:none">
       </div>
-
-      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
-                  border-radius:10px;padding:12px;font-size:0.83rem;margin-bottom:16px">
+      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;font-size:0.83rem;margin-bottom:16px">
         <strong style="color:var(--amber)">⚠️ เงื่อนไขสำคัญ</strong>
         <ul style="margin:6px 0 0 16px;color:var(--text-dim);line-height:2">
           <li>ชื่อ Course ใน Google Classroom ต้องมีชื่อห้องอยู่ เช่น <em>"ชีววิทยา ม.5/1"</em></li>
@@ -1198,15 +1241,9 @@ function syncFromClassroom() {
           <li>คะแนนจะดึงมาเฉพาะงานที่ครู <strong>Return</strong> กลับแล้วเท่านั้น</li>
         </ul>
       </div>
-
-      <div id="gc-log" style="display:none;background:#0f172a;border:1px solid var(--border-glass);
-        border-radius:10px;padding:14px;font-family:monospace;font-size:0.78rem;
-        color:#7dd3fc;white-space:pre-wrap;max-height:220px;overflow-y:auto;
-        margin-bottom:16px"></div>
-
+      <div id="gc-log" style="display:none;background:#0f172a;border:1px solid var(--border-glass);border-radius:10px;padding:14px;font-family:monospace;font-size:0.78rem;color:#7dd3fc;white-space:pre-wrap;max-height:220px;overflow-y:auto;margin-bottom:16px"></div>
       <div class="flex gap-3">
-        <button class="btn btn-primary flex-1 btn-lg" id="gc-start-btn"
-          onclick="startGcSync()">🚀 เชื่อมต่อ Google &amp; เริ่มซิงค์</button>
+        <button class="btn btn-primary flex-1 btn-lg" id="gc-start-btn" onclick="startGcSync()">🚀 เชื่อมต่อ Google &amp; เริ่มซิงค์</button>
         <button class="btn btn-ghost" onclick="document.getElementById('m-gc-sync').remove()">ยกเลิก</button>
       </div>
     </div>`;
@@ -1219,27 +1256,20 @@ function gcLog(msg, type) {
   el.style.display = 'block';
   const colors = { ok:'#4ade80', err:'#f87171', info:'#7dd3fc', warn:'#fbbf24' };
   const icons  = { ok:'✅', err:'❌', info:'→', warn:'⚠️' };
-  el.innerHTML += `<span style="color:${colors[type]||'#cbd5e1'}">${icons[type]||'•'} ${msg}\n</span>`;
+  el.innerHTML += `<span style="color:${colors[type]||'#cbd5e1'}">${icons[type]||'•'} ${escapeHtml(msg)}\n</span>`;
   el.scrollTop = el.scrollHeight;
 }
 
 async function startGcSync() {
-  // ── ตรวจสอบ input ──
   const room = $('gc-room').value;
   const subjSel = $('gc-subj').value;
   const subjNew = ($('gc-subj-new').value || '').trim();
   const subj = subjSel === '__new__' ? subjNew : subjSel;
-
   if (!room) { showToast('กรุณาเลือกห้องเรียน', 'error'); return; }
   if (!subj) { showToast('กรุณาเลือกหรือพิมพ์วิชา', 'error'); return; }
-
-  // ล็อกปุ่ม
   const btn = $('gc-start-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ กำลังดำเนินการ...';
-
+  btn.disabled = true; btn.textContent = '⏳ กำลังดำเนินการ...';
   if (!googleAccessToken) {
-    // ขอ Token ก่อน แล้วค่อยซิงค์
     _requestGcToken(() => _doGcSync(room, subj));
   } else {
     await _doGcSync(room, subj);
@@ -1257,265 +1287,106 @@ function _requestGcToken(callback) {
       'https://www.googleapis.com/auth/classroom.profile.photos'
     ].join(' '),
     callback: resp => {
-      if (resp.error) {
-        showToast('Google Auth ล้มเหลว: ' + resp.error, 'error');
-        return;
-      }
+      if (resp.error) { showToast('Google Auth ล้มเหลว: ' + resp.error, 'error'); return; }
       googleAccessToken = resp.access_token;
       gcLog('เชื่อมต่อ Google สำเร็จ (สิทธิ์ครบถ้วน)', 'ok');
       if (callback) callback();
     }
   });
-  tokenClient.requestAccessToken({ prompt: 'consent' }); // บังคับให้หน้าต่างขอสิทธิ์เด้งขึ้นมาใหม่
+  tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 async function _doGcSync(room, subj) {
   gcLog(`เริ่มซิงค์ | ห้อง: ${room} | วิชา: ${subj}`, 'info');
   setSyncProgress(5, '🔍 ค้นหาห้องเรียนใน Google Classroom...');
-
   try {
-    // ══ STEP 1: หา Course ══
     gcLog('กำลังดึงรายวิชา...', 'info');
-    const coursesData = await gcFetch(
-      'https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=50'
-    );
-
-    if (!coursesData.courses?.length) {
-      gcLog('ไม่พบวิชาในบัญชีนี้', 'err');
-      setSyncProgress(0);
-      showToast('ไม่พบวิชาเรียนในบัญชี Google นี้', 'error');
-      return;
-    }
-
-    const targetCourse = coursesData.courses.find(c =>
-      (c.name || '').includes(room) || (c.section || '').includes(room)
-    );
-
-    if (!targetCourse) {
-      gcLog(`ไม่พบห้อง "${room}" | วิชาที่มี: ${coursesData.courses.map(c => c.name).join(', ')}`, 'err');
-      setSyncProgress(0);
-      showToast(`ไม่พบห้อง "${room}" ใน Classroom`, 'error');
-      return;
-    }
+    const coursesData = await gcFetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=50');
+    if (!coursesData.courses?.length) { gcLog('ไม่พบวิชาในบัญชีนี้', 'err'); setSyncProgress(0); showToast('ไม่พบวิชาเรียนในบัญชี Google นี้', 'error'); return; }
+    const targetCourse = coursesData.courses.find(c => (c.name || '').includes(room) || (c.section || '').includes(room));
+    if (!targetCourse) { gcLog(`ไม่พบห้อง "${room}" | วิชาที่มี: ${coursesData.courses.map(c => c.name).join(', ')}`, 'err'); setSyncProgress(0); showToast(`ไม่พบห้อง "${room}" ใน Classroom`, 'error'); return; }
     gcLog(`พบ Course: "${targetCourse.name}" (ID: ${targetCourse.id})`, 'ok');
     setSyncProgress(15, '👥 กำลังดึงรายชื่อนักเรียน...');
-
-    // ══ STEP 2: ดึง Roster (userId → email) ══
-    const rosterData = await gcFetch(
-      `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students?pageSize=200`
-    );
+    const rosterData = await gcFetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students?pageSize=200`);
     const gcEmailMap = {};
-    (rosterData.students || []).forEach(s => {
-      if (s.userId && s.profile?.emailAddress) {
-        gcEmailMap[s.userId] = s.profile.emailAddress.toLowerCase();
-      }
-    });
+    (rosterData.students || []).forEach(s => { if (s.userId && s.profile?.emailAddress) gcEmailMap[s.userId] = s.profile.emailAddress.toLowerCase(); });
     gcLog(`นักเรียนใน Classroom: ${Object.keys(gcEmailMap).length} คน`, 'info');
-
-    // Map email → student ในระบบ
     const localStudents = students.filter(s => s.classroom === room);
     const localEmailMap = {};
-    localStudents.forEach(s => {
-      if (s.email) localEmailMap[s.email.toLowerCase()] = s;
-    });
+    localStudents.forEach(s => { if (s.email) localEmailMap[s.email.toLowerCase()] = s; });
     gcLog(`นักเรียนในระบบ (${room}): ${localStudents.length} คน | มี email: ${Object.keys(localEmailMap).length} คน`, 'info');
-
-    // ตรวจสอบการ match
     let matchCount = 0;
     Object.values(gcEmailMap).forEach(email => { if (localEmailMap[email]) matchCount++; });
     gcLog(`จับคู่ email ได้: ${matchCount} คน`, matchCount > 0 ? 'ok' : 'warn');
-    if (matchCount === 0) {
-      gcLog('⚠️ ไม่มี email ตรงกันเลย! ตรวจสอบ email ของนักเรียนในระบบ', 'warn');
-    }
-
+    if (matchCount === 0) gcLog('⚠️ ไม่มี email ตรงกันเลย! ตรวจสอบ email ของนักเรียนในระบบ', 'warn');
     setSyncProgress(25, '📝 กำลังดึงรายการงาน...');
-
-    // ══ STEP 3: ดึงงาน ══
-    const workData = await gcFetch(
-      `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork?pageSize=100&orderBy=updateTime%20desc`
-    );
-
-    if (!workData.courseWork?.length) {
-      gcLog('ไม่พบงานใน Course นี้', 'warn');
-      setSyncProgress(0);
-      showToast('ไม่พบงานใน Classroom', 'warn');
-      return;
-    }
-
+    const workData = await gcFetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork?pageSize=100&orderBy=updateTime%20desc`);
+    if (!workData.courseWork?.length) { gcLog('ไม่พบงานใน Course นี้', 'warn'); setSyncProgress(0); showToast('ไม่พบงานใน Classroom', 'warn'); return; }
     const works = workData.courseWork;
     gcLog(`พบงาน: ${works.length} ชิ้น`, 'ok');
     setSyncProgress(30, `⚙️ กำลังซิงค์ ${works.length} งาน...`);
-
     let totalGraded = 0;
-
-    // ══ STEP 4: วนงานแต่ละชิ้น ══
     for (let wi = 0; wi < works.length; wi++) {
       const work = works[wi];
       const pct  = 30 + Math.round(((wi + 1) / works.length) * 65);
       setSyncProgress(pct, `⚙️ งาน ${wi+1}/${works.length}: ${work.title}`);
       gcLog(`\n📝 งาน: "${work.title}" (maxPoints: ${work.maxPoints})`, 'info');
-
-      // ─ 4a. Upsert assignment ─
-      const asgnPayload = {
-        name:             work.title,
-        description:      work.description || '',
-        subject:          subj,
-        classroom:        room,
-        category:         detectCategory(work.title),
-        max_score:        work.maxPoints || 10,
-        passing_score:    Math.ceil((work.maxPoints || 10) * 0.5),
-        type:             'Google Classroom',
-        gc_coursework_id: work.id
-      };
-
-      // ตรวจสอบว่ามีงานนี้แล้วหรือไม่
-      const { data: existCheck } = await _sb
-        .from('assignments')
-        .select('id')
-        .eq('gc_coursework_id', work.id)
-        .maybeSingle();
-
+      const asgnPayload = { name: work.title, description: work.description || '', subject: subj, classroom: room, category: detectCategory(work.title), max_score: work.maxPoints || 10, passing_score: Math.ceil((work.maxPoints || 10) * 0.5), type: 'Google Classroom', gc_coursework_id: work.id };
+      const { data: existCheck } = await _sb.from('assignments').select('id').eq('gc_coursework_id', work.id).maybeSingle();
       let asgnId;
       if (existCheck) {
-        // Update ข้อมูลงานเดิม
-        const { data: upd, error: updErr } = await _sb
-          .from('assignments')
-          .update(asgnPayload)
-          .eq('id', existCheck.id)
-          .select('id')
-          .single();
+        const { data: upd, error: updErr } = await _sb.from('assignments').update(asgnPayload).eq('id', existCheck.id).select('id').single();
         if (updErr) { gcLog(`  ❌ Update error: ${updErr.message}`, 'err'); continue; }
-        asgnId = upd.id;
-        gcLog(`  ↻ อัปเดตงานเดิม (ID: ${asgnId})`, 'info');
+        asgnId = upd.id; gcLog(`  ↻ อัปเดตงานเดิม (ID: ${asgnId})`, 'info');
       } else {
-        // Insert งานใหม่
-        const { data: ins, error: insErr } = await _sb
-          .from('assignments')
-          .insert(asgnPayload)
-          .select('id')
-          .single();
+        const { data: ins, error: insErr } = await _sb.from('assignments').insert(asgnPayload).select('id').single();
         if (insErr) { gcLog(`  ❌ Insert error: ${insErr.message}`, 'err'); continue; }
-        asgnId = ins.id;
-        gcLog(`  ✓ สร้างงานใหม่ (ID: ${asgnId})`, 'ok');
+        asgnId = ins.id; gcLog(`  ✓ สร้างงานใหม่ (ID: ${asgnId})`, 'ok');
       }
-
-      // ─ 4b. สร้าง grade rows สำหรับทุกคนในห้อง (not_sent เป็น default) ─
       if (localStudents.length > 0) {
-        const initRows = localStudents.map(s => ({
-          student_id:    s.id,
-          assignment_id: asgnId,
-          score:         null,
-          max_score:     work.maxPoints || 10,
-          status:        'not_sent'
-        }));
-        // ignoreDuplicates = true เพื่อไม่ทับข้อมูลที่มีอยู่
-        await _sb.from('grades').upsert(initRows, {
-          onConflict: 'student_id,assignment_id',
-          ignoreDuplicates: true
-        });
+        const initRows = localStudents.map(s => ({ student_id: s.id, assignment_id: asgnId, score: null, max_score: work.maxPoints || 10, status: 'not_sent' }));
+        await _sb.from('grades').upsert(initRows, { onConflict: 'student_id,assignment_id', ignoreDuplicates: true });
         gcLog(`  ✓ Ensure grade rows: ${localStudents.length} คน`, 'info');
       }
-
-      // ─ 4c. ดึง studentSubmissions ─
       let subsData;
-      try {
-        subsData = await gcFetch(
-          `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions?pageSize=200`
-        );
-      } catch (subErr) {
-        gcLog(`  ⚠️ ดึง submissions ไม่ได้: ${subErr.message}`, 'warn');
-        continue;
-      }
-
+      try { subsData = await gcFetch(`https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions?pageSize=200`); }
+      catch (subErr) { gcLog(`  ⚠️ ดึง submissions ไม่ได้: ${subErr.message}`, 'warn'); continue; }
       const submissions = subsData.studentSubmissions || [];
       gcLog(`  Submissions: ${submissions.length} รายการ`, 'info');
-
-      // ─ 4d. แปลง submissions → grade updates ─
       const gradeUpdates = [];
-
       for (const sub of submissions) {
-        const email = gcEmailMap[sub.userId];
-        if (!email) continue;
-
-        const localSt = localEmailMap[email];
-        if (!localSt) continue;
-
-        // แปลง state
+        const email = gcEmailMap[sub.userId]; if (!email) continue;
+        const localSt = localEmailMap[email]; if (!localSt) continue;
         let status = 'not_sent';
-        if (sub.state === 'TURNED_IN' || sub.state === 'RECLAIMED_BY_STUDENT') {
-          status = 'waiting';
-        } else if (sub.state === 'RETURNED') {
-          status = 'checked';
-        }
-
-        // ── ดึงคะแนน: ลองทุก field ──
+        if (sub.state === 'TURNED_IN' || sub.state === 'RECLAIMED_BY_STUDENT') status = 'waiting';
+        else if (sub.state === 'RETURNED') status = 'checked';
         let score = null;
         if (sub.state === 'RETURNED' || sub.state === 'TURNED_IN') {
-          if (sub.assignedGrade !== undefined && sub.assignedGrade !== null) {
-            score = parseFloat(sub.assignedGrade);
-          } else if (sub.draftGrade !== undefined && sub.draftGrade !== null) {
-            score = parseFloat(sub.draftGrade);
-            // ถ้ามีแค่ draftGrade = ครูยังไม่ return → รอตรวจ
-            if (status === 'not_sent') status = 'waiting';
-          }
+          if (sub.assignedGrade !== undefined && sub.assignedGrade !== null) score = parseFloat(sub.assignedGrade);
+          else if (sub.draftGrade !== undefined && sub.draftGrade !== null) { score = parseFloat(sub.draftGrade); if (status === 'not_sent') status = 'waiting'; }
         }
-
-        gradeUpdates.push({
-          student_id:    localSt.id,
-          assignment_id: asgnId,
-          score,
-          max_score:     work.maxPoints || 10,
-          status,
-          updated_at:    new Date().toISOString()
-        });
+        gradeUpdates.push({ student_id: localSt.id, assignment_id: asgnId, score, max_score: work.maxPoints || 10, status, updated_at: new Date().toISOString() });
       }
-
-      // ─ 4e. Upsert คะแนนที่ได้จาก Classroom ─
       if (gradeUpdates.length > 0) {
-        const { error: grErr } = await _sb
-          .from('grades')
-          .upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
-
-        if (grErr) {
-          gcLog(`  ❌ บันทึกคะแนน error: ${grErr.message}`, 'err');
-        } else {
-          const gradedNow = gradeUpdates.filter(g => g.score !== null).length;
-          gcLog(`  ✓ อัปเดต ${gradeUpdates.length} คน | มีคะแนน: ${gradedNow} คน`, 'ok');
-          totalGraded += gradedNow;
-        }
-      } else {
-        gcLog('  ℹ️ ไม่มี submission ที่ตรงกับนักเรียนในระบบ', 'warn');
-      }
-
-      // หน่วงเล็กน้อยป้องกัน rate limit
+        const { error: grErr } = await _sb.from('grades').upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
+        if (grErr) { gcLog(`  ❌ บันทึกคะแนน error: ${grErr.message}`, 'err'); }
+        else { const gradedNow = gradeUpdates.filter(g => g.score !== null).length; gcLog(`  ✓ อัปเดต ${gradeUpdates.length} คน | มีคะแนน: ${gradedNow} คน`, 'ok'); totalGraded += gradedNow; }
+      } else { gcLog('  ℹ️ ไม่มี submission ที่ตรงกับนักเรียนในระบบ', 'warn'); }
       await new Promise(r => setTimeout(r, 150));
     }
-
-    // ══ เสร็จสิ้น ══
     setSyncProgress(0);
     gcLog(`\n════ ซิงค์เสร็จ! ${works.length} งาน | มีคะแนน: ${totalGraded} รายการ ════`, 'ok');
     showToast(`✅ ซิงค์สำเร็จ! ${works.length} งาน | คะแนน ${totalGraded} รายการ`, 'success');
-
-    // รีโหลดข้อมูล
     assignments = await gasCall('getAllAssignments');
-    populateDropdowns();
-    renderAsgnTable();
-    syncAssignSelect();
-
-    // ปลดล็อกปุ่ม
+    populateDropdowns(); renderAsgnTable(); syncAssignSelect();
     const btn = $('gc-start-btn');
     if (btn) { btn.disabled = false; btn.textContent = '✅ ซิงค์เสร็จแล้ว'; }
-
   } catch (e) {
     setSyncProgress(0);
     gcLog(`\nFATAL: ${e.message}`, 'err');
     showToast('❌ Sync Error: ' + e.message, 'error');
     console.error('[GC Sync]', e);
-
-    if (e.message.includes('Token') || e.message.includes('401')) {
-      googleAccessToken = null;
-      gcLog('Token หมดอายุ — กดซิงค์อีกครั้ง', 'warn');
-    }
+    if (e.message.includes('Token') || e.message.includes('401')) { googleAccessToken = null; gcLog('Token หมดอายุ — กดซิงค์อีกครั้ง', 'warn'); }
     const btn = $('gc-start-btn');
     if (btn) { btn.disabled = false; btn.textContent = '🔄 ลองอีกครั้ง'; }
   }
@@ -1584,32 +1455,18 @@ async function exportAttendanceReport() {
         for(let i=1;i<=h;i++) rowData.push(symbol);
       });
       const pct=totalH>0?(attendedH/totalH)*100:0;
+      // FIX #12: ตัด subject ให้ไม่เกิน 31 ตัวอักษร
       rowData.push(totalH,attendedH,pct.toFixed(2)+'%',pct>=80?'ผ่าน':'มส.');
       return rowData;
     });
     const ws=XLSX.utils.aoa_to_sheet([header].concat(rows));
     const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,room.replace(/[:\\/?*\[\]]/g,'_').substring(0,31));
+    const sheetName = ('รายงาน_'+room).replace(/[:\\/?*\[\]]/g,'_').substring(0,31);
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
     XLSX.writeFile(wb,'รายงานเช็กชื่อ_'+room+'_'+subj+'.xlsx');
     showToast('สำเร็จ!','success');
   } catch(e){ showToast('เกิดข้อผิดพลาด: '+(e.message||e),'error'); }
 }
-
-// ─── DNA ANIMATION ─────────────────────────────────────────
-function createDNA() {
-  const container = $('dna-helix'); if (!container) return;
-  for (let i = 0; i < 30; i++) {
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex;justify-content:center;align-items:center;height:3.3vh;';
-    const dot1 = document.createElement('div'); dot1.className = 'dna-dot';
-    dot1.style.animationDelay = (i * -0.15) + 's';
-    const dot2 = document.createElement('div'); dot2.className = 'dna-dot strand-2';
-    dot2.style.animationDelay = (i * -0.15 - 2) + 's';
-    wrapper.appendChild(dot1); wrapper.appendChild(dot2);
-    container.appendChild(wrapper);
-  }
-}
-createDNA();
 
 // ─── INIT ──────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
@@ -1620,11 +1477,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     $('nav-logout').style.display = 'flex';
     await initAdmin();
   }
-  // ตั้ง default หน้า status
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   $('page-status').classList.add('active');
   $('nav-status').classList.add('active');
-
-  $('st-id-inp')?.addEventListener('keydown', e => { if (e.key === 'Enter') searchStatus(); });
+  $('st-id-inp').addEventListener('keydown', e => { if (e.key === 'Enter') searchStatus(); });
 });
