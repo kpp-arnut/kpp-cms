@@ -790,22 +790,6 @@ function filterStudents() {
 </tr>`).join('');
 }
 
-function openAddStudentModal() {
-    const modalTitle = document.querySelector('#m-add-st .modal-hd');
-    if (modalTitle) modalTitle.innerHTML = `➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
-    
-    $('ns-id').value = '';
-    $('ns-id').readOnly = false;
-    $('ns-id').style.opacity = "1";
-    $('ns-fn').value = '';
-    $('ns-ln').value = '';
-    $('ns-cls').value = '';
-    $('ns-seat').value = '';
-    $('ns-email').value = '';
-    
-    openModal('m-add-st');
-}
-
 function prepareAddStudent() {
     const modalTitle = document.querySelector('#m-add-st .modal-hd');
     if (modalTitle) modalTitle.innerHTML = `➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
@@ -1043,8 +1027,27 @@ async function saveAssignment() {
   if (id) d.id = id;
   if (!d.name || !d.subject || !d.classroom) { showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
   try {
-    const { error } = await _sb.from('assignments').upsert(d, { onConflict: 'id' });
+    const { data: savedAsgn, error } = await _sb
+      .from('assignments')
+      .upsert(d, { onConflict: 'id' })
+      .select()
+      .single();
     if (error) throw error;
+
+    // ✅ สร้าง grade rows อัตโนมัติสำหรับทุกคนในห้อง (เฉพาะงานใหม่)
+    if (!id) {
+      const localStudents = students.filter(s => s.classroom === room);
+      if (localStudents.length > 0) {
+        const gradeRows = localStudents.map(s => ({
+          student_id: s.id, assignment_id: savedAsgn.id,
+          score: null, max_score: d.max_score, status: 'not_sent'
+        }));
+        await _sb.from('grades').upsert(gradeRows, {
+          onConflict: 'student_id,assignment_id', ignoreDuplicates: true
+        });
+      }
+    }
+
     closeModal('m-add-asgn');
     showToast(id ? 'แก้ไขงานสำเร็จ' : 'สร้างงานสำเร็จ', 'success');
     $('na-id').value = ''; $('asgn-modal-title').textContent = '➕ เพิ่มงาน / การสอบ';
