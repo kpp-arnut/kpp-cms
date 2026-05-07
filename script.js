@@ -789,7 +789,22 @@ function filterStudents() {
 </tr>`).join('');
 }
 
-// ── เดิมมีสองนิยาม — รวมเป็นอันเดียว (รองรับ email) ──
+function openAddStudentModal() {
+    const modalTitle = document.querySelector('#m-add-st .modal-hd');
+    if (modalTitle) modalTitle.innerHTML = `➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
+    
+    $('ns-id').value = '';
+    $('ns-id').readOnly = false;
+    $('ns-id').style.opacity = "1";
+    $('ns-fn').value = '';
+    $('ns-ln').value = '';
+    $('ns-cls').value = '';
+    $('ns-seat').value = '';
+    $('ns-email').value = '';
+    
+    openModal('m-add-st');
+}
+
 async function saveStudent() {
   const d = {
     id:         $('ns-id').value.trim(),
@@ -810,6 +825,24 @@ async function saveStudent() {
     assignments = await gasCall('getAllAssignments');
     populateDropdowns(); renderStudentTable();
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
+}
+
+function editStudent(s) {
+    const modalTitle = document.querySelector('#m-add-st .modal-hd');
+    if (modalTitle) modalTitle.innerHTML = `✏️ แก้ไขข้อมูลนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
+    
+    // ใส่ข้อมูลเดิมลงใน Input
+    $('ns-id').value = s.id;
+    $('ns-id').readOnly = true; // ห้ามแก้รหัส (Primary Key) ถ้าจะแก้รหัสต้องลบแล้วเพิ่มใหม่
+    $('ns-id').style.opacity = "0.6";
+    
+    $('ns-fn').value = s.first_name;
+    $('ns-ln').value = s.last_name;
+    $('ns-cls').value = s.classroom;
+    $('ns-seat').value = s.seat_no;
+    $('ns-email').value = s.email || '';
+    
+    openModal('m-add-st');
 }
 
 async function delStudent(id) {
