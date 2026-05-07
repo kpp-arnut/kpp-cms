@@ -108,31 +108,58 @@ body {
    ════════════════════════════════ */
 .app { position: relative; z-index: 1; }
 
+
 header {
-    position: sticky; top: 0; z-index: 100;
-    background: rgba(28, 28, 46, 0.92);
-    backdrop-filter: blur(18px);
-    border-bottom: 3px solid rgba(212, 212, 232, 0.2);
+    /* ใช้สี Matisse (#355C7D) เป็นพื้นหลักไล่ไปหา Briar Rose (#C06C84) */
+    background: linear-gradient(90deg, #355C7D 0%, #6C5B7B 50%, #C06C84 100%) !important;
     padding: 0 20px;
+    height: 70px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    
+    /* เพิ่มขอบล่างด้วยสี Momo Peach (#F67280) เพื่อความเริส */
+    border-bottom: 4px solid #F67280; 
+    display: flex;
+    align-items: center;
 }
+
 .header-inner {
     max-width: 1200px; margin: 0 auto; height: 65px;
     display: flex; align-items: center; justify-content: space-between;
 }
-.logo {
-    font-family: 'Kanit'; font-weight: 700; color: var(--platinum);
-    display: flex; align-items: center; gap: 10px; font-size: 1.05rem;
+
+.logo span {
+    color: #FFFFFF; /* หรือใช้ #F8B195 */
+    font-size: 1.4rem;
+    font-weight: 800;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 nav { display: flex; gap: 8px; }
 .nav-btn {
-    background: transparent; border: none; color: var(--text-dim);
-    padding: 8px 16px; border-radius: 10px; cursor: pointer; transition: all 0.25s;
-    font-family: 'Sarabun'; font-weight: 500; font-size: 0.95rem;
-    display: flex; align-items: center; gap: 6px; position: relative;
+    background: rgba(255, 255, 255, 0.15); /* ปุ่มแบบใสๆ กระจก */
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-weight: 500;
+    transition: 0.3s;
 }
-.nav-btn:hover  { background: rgba(255,255,255,0.08); color: #fff; }
-.nav-btn.active { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(91,96,128,0.5); }
+
+.nav-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.nav-btn.active {
+    background: #F8B195 !important;
+    color: #355C7D !important;
+    box-shadow: 0 4px 12px rgba(248, 177, 149, 0.4);
+    border: none;
+}
+
 
 .cfg-dot    { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); display: inline-block; }
 .cfg-dot.ok { background: var(--green); }
