@@ -70,11 +70,18 @@ body {
 }
 
 .dna-dot::after {
-    content: ""; position: absolute;
-    width: 120px; height: 6px;
+    content: "";
+    position: absolute;
+    width: 110px; 
+    height: 6px;
     background: linear-gradient(90deg, var(--platinum), var(--silver-mist));
-    top: 50%; left: 50%; transform: translateY(-50%);
-    z-index: -1; border-radius: 10px; opacity: 0.75;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); 
+    z-index: -1;
+    
+    border-radius: 10px;
+    opacity: 0.8;
 }
 
 .dna-dot.strand-2 {
@@ -84,8 +91,16 @@ body {
 }
 
 @keyframes rotate3d {
-    0%, 100% { transform: translateX(-60px) scale(1.25); opacity: 1; }
-    50%       { transform: translateX(60px)  scale(0.72); opacity: 0.3; }
+    0%, 100% { 
+        transform: translateX(-55px) scale(1.2); /* ระยะแกน X ต้องสัมพันธ์กับความกว้างเส้น */
+        opacity: 1; 
+        z-index: 2; 
+    }
+    50% { 
+        transform: translateX(55px) scale(0.7); 
+        opacity: 0.3; 
+        z-index: -1; 
+    }
 }
 
 /* ════════════════════════════════
