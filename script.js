@@ -372,7 +372,8 @@ async function searchStatus() {
       const pt = s.max > 0 ? (s.current / s.max) * s.weight : 0;
       weightedTotal += pt; chartPoints.push(pt.toFixed(2));
     });
-    const behaviorScore = parseFloat(stInfo.behavior_score ?? 10);
+      const behaviorScore = (stInfo.behavior_score !== null && stInfo.behavior_score !== undefined) 
+                            ? parseFloat(stInfo.behavior_score) : 10;
     chartPoints.push(behaviorScore.toFixed(2));
     const grandTotal = weightedTotal + behaviorScore;
 
