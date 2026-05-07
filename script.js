@@ -779,9 +779,14 @@ function filterStudents() {
     <td>${s.last_name}</td>
     <td><span class="badge badge-blue">${s.classroom}</span></td>
     <td style="text-align:center">${s.seat_no}</td>
-    <td style="text-align:center"><button class="btn btn-sm btn-outline" onclick="showQR('${s.id}','${s.first_name} ${s.last_name}','${s.classroom}')">📷</button></td>
+    <td style="text-align:center">
+        <div class="flex gap-2 justify-center">
+            <button class="btn btn-sm btn-outline" onclick="showQR('${s.id}','${s.first_name} ${s.last_name}','${s.classroom}')">📷</button>
+            <button class="btn btn-sm btn-ghost" onclick='editStudent(${JSON.stringify(s)})'>✏️</button>
+        </div>
+    </td>
     <td style="text-align:center"><button class="btn btn-sm btn-danger" onclick="delStudent('${s.id}')">🗑️</button></td>
-  </tr>`).join('');
+</tr>`).join('');
 }
 
 // ── เดิมมีสองนิยาม — รวมเป็นอันเดียว (รองรับ email) ──
