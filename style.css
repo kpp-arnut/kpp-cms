@@ -57,56 +57,81 @@ body {
 }
 
 /* ════════════════════════════════
-   DNA — ลูกบอลหมุนเกลียว (ไม่มีเส้น)
+   DNA — Canvas-based helix
+   แทนที่ div/dot เดิมด้วย <canvas>
    ════════════════════════════════ */
-.dna-container {
-    position: absolute; top: 0; left: 80px;
-    width: 140px; height: 100%;
-    display: flex; flex-direction: column;
-    justify-content: space-around; opacity: 0.45;
+.dna-canvas-wrap {
+    position: absolute;
+    top: 0; left: 60px;
+    width: 120px; height: 100%;
+    opacity: 0.5;
+    pointer-events: none;
 }
 
-.dna-dot {
-    width: 20px; height: 20px;
-    background: var(--platinum);
-    border-radius: 50%;
-    box-shadow: 0 0 14px rgba(212, 212, 232, 0.75);
-    animation: dna-helix 4s ease-in-out infinite;
-    position: relative;
-    /* ลบ ::after (เส้น) ทิ้งทั้งหมด */
-}
-
-/* ไม่มี .dna-dot::after แล้ว */
-
-.dna-dot.strand-2 {
-    background: rgba(255, 255, 255, 0.5);
-    box-shadow: 0 0 14px rgba(255, 255, 255, 0.3);
-    animation: dna-helix 4s ease-in-out infinite;
-    animation-delay: -2s;
+.dna-canvas-wrap canvas {
+    width: 120px;
+    height: 100%;
 }
 
 /*
-  ลูกบอลแกว่งซ้าย-ขวา + scale + opacity
-  จำลองการหมุนเกลียว 3D โดยไม่ต้องใช้ JS
-  delay ถูก stagger รายลูกใน HTML ด้วย style="animation-delay"
-*/
-@keyframes dna-helix {
-    0%   { transform: translateX(-36px) scale(1.3);  opacity: 1; }
-    25%  { transform: translateX(0px)   scale(1.0);  opacity: 0.65; }
-    50%  { transform: translateX(36px)  scale(0.65); opacity: 0.2; }
-    75%  { transform: translateX(0px)   scale(1.0);  opacity: 0.65; }
-    100% { transform: translateX(-36px) scale(1.3);  opacity: 1; }
-}
+  วิธีใช้งานใน HTML — แทนที่ .dna-container เดิม:
 
-/*
-  ตัวอย่างการใช้งานใน HTML:
-  <div class="dna-container">
-    <div class="dna-dot"     style="animation-delay: 0s"></div>
-    <div class="dna-dot strand-2" style="animation-delay: -0.22s"></div>
-    <div class="dna-dot"     style="animation-delay: -0.44s"></div>
-    <div class="dna-dot strand-2" style="animation-delay: -0.66s"></div>
-    ...ทำซ้ำจนเต็ม container
+  <div class="dna-canvas-wrap">
+    <canvas id="dna-canvas"></canvas>
   </div>
+
+  แล้วเรียก script นี้:
+
+  (function() {
+    const canvas = document.getElementById('dna-canvas');
+    canvas.width = 120;
+    canvas.height = canvas.parentElement.offsetHeight || 800;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height, cx = W / 2;
+    const DOTS = 20, SPACING = H / (DOTS - 1), AMPLITUDE = 38, PERIOD = H * 0.65;
+    let t = 0;
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      const dots = [];
+      for (let i = 0; i < DOTS; i++) {
+        const y = i * SPACING;
+        const angle = (y / PERIOD) * Math.PI * 2 + t;
+        dots.push({ y,
+          x1: cx + Math.cos(angle) * AMPLITUDE, z1: Math.sin(angle),
+          x2: cx + Math.cos(angle + Math.PI) * AMPLITUDE, z2: Math.sin(angle + Math.PI) });
+      }
+      // crossbar
+      for (const { y, x1, x2, z1, z2 } of dots) {
+        if (Math.abs(z1 - z2) < 0.4) {
+          const a = 0.08 + (1 - Math.abs(z1 - z2) / 0.4) * 0.12;
+          ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y);
+          ctx.strokeStyle = `rgba(180,180,210,${a})`; ctx.lineWidth = 1; ctx.stroke();
+        }
+      }
+      // dots sorted by z
+      const all = [];
+      for (const { y, x1, x2, z1, z2 } of dots) {
+        all.push({ x: x1, y, z: z1, s: 1 });
+        all.push({ x: x2, y, z: z2, s: 2 });
+      }
+      all.sort((a, b) => a.z - b.z);
+      for (const d of all) {
+        const dep = (d.z + 1) / 2;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 4 + dep * 7, 0, Math.PI * 2);
+        ctx.fillStyle = d.s === 1
+          ? `rgba(212,212,232,${0.2 + dep * 0.8})`
+          : `rgba(255,255,255,${0.12 + dep * 0.5})`;
+        ctx.shadowColor = d.s === 1 ? 'rgba(212,212,232,0.6)' : 'rgba(255,255,255,0.4)';
+        ctx.shadowBlur = dep * 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      t += 0.018;
+      requestAnimationFrame(draw);
+    }
+    draw();
+  })();
 */
 
 /* ════════════════════════════════
