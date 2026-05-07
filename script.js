@@ -822,23 +822,6 @@ function prepareAddStudent() {
     openModal('m-add-st');
 }
 
-function editStudent(s) {
-    const modalTitle = document.querySelector('#m-add-st .modal-hd');
-    if (modalTitle) modalTitle.innerHTML = `✏️ แก้ไขข้อมูลนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button>`;
-    
-    $('ns-id').value = s.id;
-    $('ns-id').readOnly = true;
-    $('ns-id').style.opacity = "0.6";
-    
-    $('ns-fn').value = s.first_name;
-    $('ns-ln').value = s.last_name;
-    $('ns-cls').value = s.classroom;
-    $('ns-seat').value = s.seat_no;
-    $('ns-email').value = s.email || '';
-    
-    openModal('m-add-st');
-}
-
 async function saveStudent() {
   const d = {
     id:         $('ns-id').value.trim(),
