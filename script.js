@@ -1195,11 +1195,19 @@ async function gcFetch(url) {
 
 function detectCategory(title) {
   const t = (title || '').toLowerCase();
-  if (t.includes('ปลายภาค') || t.includes('final') || t.includes('[fin]')) return 'ปลายภาค';
-  if (t.includes('กลางภาค') || t.includes('midterm') || t.includes('[mid]')) return 'กลางภาค';
-  if (t.includes('หลังกลางภาค') || t.includes('after') || t.includes('[aft]')) return 'หลังกลางภาค';
-  if (t.includes('ก่อนกลางภาค') || t.includes('before') || t.includes('[bef]')) return 'ก่อนกลางภาค';
-  return 'ก่อนกลางภาค';
+  if (t.includes('ปลายภาค') || t.includes('final') || t.includes('[fin]')) {
+    return 'ปลายภาค';
+  }
+  if (t.includes('หลังกลางภาค') || t.includes('after') || t.includes('[aft]')) {
+    return 'หลังกลางภาค';
+  }
+  if (t.includes('กลางภาค') || t.includes('midterm') || t.includes('[mid]')) {
+    return 'กลางภาค';
+  }
+  if (t.includes('ก่อนกลางภาค') || t.includes('before') || t.includes('[bef]')) {
+    return 'ก่อนกลางภาค';
+  }
+  return 'ก่อนกลางภาค'; 
 }
 
 function syncFromClassroom() {
