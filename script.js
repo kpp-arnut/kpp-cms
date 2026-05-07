@@ -1396,76 +1396,149 @@ async function _doGcSync(room, subj) {
 async function exportExcel() {
   const room = $('exp-room').value, subj = $('exp-subj').value;
   if (!room || !subj) { showToast('เลือกห้องและวิชาก่อน','error'); return; }
+  
   try {
-    const data  = await gasCall('getGradesByRoom', room, subj);
-    const sts   = data.students, asgns = data.assignments, grs = data.grades;
-    const gMap  = {};
+    showToast('🚀 กำลังสร้างไฟล์ Excel...', 'info');
+    const data = await gasCall('getGradesByRoom', room, subj);
+    const sts = data.students, asgns = data.assignments, grs = data.grades;
+    const gMap = {};
     grs.forEach(g => gMap[g.student_id + '__' + g.assignment_id] = g.score);
-    const header = ['เลขที่','รหัสนักเรียน','ชื่อ','สกุล'].concat(asgns.map(a => a.name)).concat(['รวม']);
-    const maxRow = ['','','','คะแนนเต็ม'].concat(asgns.map(a => a.max_score)).concat([asgns.reduce((s,a) => s+Number(a.max_score),0)]);
-    const rows   = sts.map(s => {
-      const scores = asgns.map(a => { const v=gMap[s.id+'__'+a.id]; return v!==undefined&&v!==null?Number(v):''; });
-      const total  = scores.reduce((s,v) => s+(typeof v==='number'?v:0), 0);
-      return [s.seat_no,s.id,s.first_name,s.last_name].concat(scores).concat([total]);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('คะแนน');
+
+    // 1. สร้าง Header
+    const header = ['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'สกุล'].concat(asgns.map(a => a.name)).concat(['รวม']);
+    const headerRow = worksheet.addRow(header);
+
+    // 2. สร้างแถวคะแนนเต็ม
+    const maxRowData = ['', '', '', 'คะแนนเต็ม'].concat(asgns.map(a => a.max_score)).concat([asgns.reduce((s, a) => s + Number(a.max_score), 0)]);
+    const maxRow = worksheet.addRow(maxRowData);
+
+    // 3. ใส่ข้อมูลนักเรียน
+    sts.forEach(s => {
+      const scores = asgns.map(a => { 
+        const v = gMap[s.id + '__' + a.id]; 
+        return v !== undefined && v !== null ? Number(v) : ''; 
+      });
+      const total = scores.reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+      worksheet.addRow([s.seat_no, s.id, s.first_name, s.last_name].concat(scores).concat([total]));
     });
-    const ws = XLSX.utils.aoa_to_sheet([header,maxRow].concat(rows));
-    ws['!cols'] = header.map(() => ({ wch:16 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, room.replace(/[:\\/?*\[\]]/g,'_').substring(0,31));
-    XLSX.writeFile(wb, ('คะแนน_'+room+'_'+subj).replace(/[:\\/?*\[\]]/g,'_')+'.xlsx');
-    showToast('ดาวน์โหลดสำเร็จ','success');
-  } catch (e) { showToast('ผิดพลาด: '+e,'error'); }
+
+    // 4. ปรับสไตล์ทั้งหมด (TH Sarabun New 14pt)
+    worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.font = { name: 'TH Sarabun New', size: 14 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+        };
+      });
+
+      // 5. เฉพาะ Header (แถวที่ 1): หมุนข้อความ 90 องศา
+      if (rowNumber === 1) {
+        row.height = 100; // เพิ่มความสูงแถวเพื่อให้ข้อความที่หมุนแสดงผลได้
+        row.eachCell((cell, colNumber) => {
+          if (colNumber > 4) { // เริ่มหมุนตั้งแต่คอลัมน์ที่ 5 เป็นต้นไป (รายการงาน)
+            cell.alignment = { textRotation: 90, vertical: 'middle', horizontal: 'center' };
+          }
+          cell.font = { name: 'TH Sarabun New', size: 14, bold: true };
+        });
+      }
+    });
+    worksheet.getColumn(1).width = 8;
+    worksheet.getColumn(2).width = 15;
+    worksheet.getColumn(3).width = 20;
+    worksheet.getColumn(4).width = 20;
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `คะแนน_${room}_${subj}.xlsx`);
+    showToast('ดาวน์โหลดสำเร็จ', 'success');
+
+  } catch (e) { 
+    console.error(e);
+    showToast('ผิดพลาด: ' + e, 'error'); 
+  }
 }
 
 async function exportAttendanceReport() {
   const room = $('exp-att-room').value, subj = $('exp-att-subj').value;
   if (!room || !subj) { showToast('กรุณาเลือกห้องและวิชา','error'); return; }
+  
   try {
-    showToast('🚀 กำลังสร้างรายงาน...','info');
-    const classStudents = students.filter(s => s.classroom === room).sort((a,b) => a.seat_no-b.seat_no);
-    const allAtt        = await gasCall('getAttendanceForRoom', room);
-    const filteredAtt   = (allAtt||[]).filter(a => a.subject === subj);
-    if (!filteredAtt.length) { showToast('ไม่พบข้อมูลการเช็กชื่อวิชา '+subj,'warn'); return; }
-    const attMap={}, dateHoursMap={};
+    showToast('🚀 กำลังสร้างรายงาน...', 'info');
+    const classStudents = students.filter(s => s.classroom === room).sort((a,b) => a.seat_no - b.seat_no);
+    const allAtt = await gasCall('getAttendanceForRoom', room);
+    const filteredAtt = (allAtt || []).filter(a => a.subject === subj);
+    
+    if (!filteredAtt.length) { showToast('ไม่พบข้อมูลการเช็กชื่อวิชา '+subj, 'warn'); return; }
+
+    const attMap = {}, dateHoursMap = {};
     filteredAtt.forEach(a => {
-      attMap[a.student_id+'_'+a.attendance_date]=a;
-      const h=parseFloat(a.hours)||1;
-      if (!dateHoursMap[a.attendance_date]||h>dateHoursMap[a.attendance_date]) dateHoursMap[a.attendance_date]=h;
+      attMap[a.student_id + '_' + a.attendance_date] = a;
+      const h = parseFloat(a.hours) || 1;
+      if (!dateHoursMap[a.attendance_date] || h > dateHoursMap[a.attendance_date]) dateHoursMap[a.attendance_date] = h;
     });
-    const dates=Object.keys(dateHoursMap).sort();
-    const header=['เลขที่','รหัสนักเรียน','ชื่อ-นามสกุล'];
-    const dateCfg=[];
+
+    const dates = Object.keys(dateHoursMap).sort();
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('การเข้าเรียน');
+
+    // เตรียม Header
+    const header = ['เลขที่', 'รหัส', 'ชื่อ-นามสกุล'];
+    const dateCfg = [];
     dates.forEach(d => {
-      const h=dateHoursMap[d]; dateCfg.push({date:d,hours:h});
-      const dObj=new Date(d);
-      const dateShow=dObj.getDate()+'/'+(dObj.getMonth()+1);
-      for(let i=1;i<=h;i++) header.push(dateShow+' (ชม.'+i+')');
+      const h = dateHoursMap[d];
+      dateCfg.push({date: d, hours: h});
+      const dObj = new Date(d);
+      const dateShow = dObj.getDate() + '/' + (dObj.getMonth() + 1);
+      for(let i = 1; i <= h; i++) header.push(dateShow + ' (ชม.' + i + ')');
     });
-    header.push('ชม.รวม','มาเรียน(ชม.)','ร้อยละ','ผลลัพธ์');
-    const rows=classStudents.map(s => {
-      const rowData=[s.seat_no,s.id,s.first_name+' '+s.last_name];
-      let totalH=0,attendedH=0;
+    header.push('ชม.รวม', 'มาเรียน(ชม.)', 'ร้อยละ', 'ผลลัพธ์');
+
+    const headerRow = worksheet.addRow(header);
+    headerRow.height = 80; // ความสูงสำหรับแนวตั้ง
+
+    // ใส่ข้อมูลนักเรียน
+    classStudents.forEach(s => {
+      const rowData = [s.seat_no, s.id, s.first_name + ' ' + s.last_name];
+      let totalH = 0, attendedH = 0;
       dateCfg.forEach(cfg => {
-        const rec=attMap[s.id+'_'+cfg.date]; const status=rec?rec.status:'ขาด'; const h=cfg.hours;
-        totalH+=h; let weight=0,symbol='ข';
-        if(status==='มา'){symbol='/';weight=1;}
-        else if(status==='ลา'){symbol='ล';weight=0.25;}
-        else if(status==='สาย'){symbol='ส';weight=0.5;}
-        attendedH+=(h*weight);
-        for(let i=1;i<=h;i++) rowData.push(symbol);
+        const rec = attMap[s.id + '_' + cfg.date];
+        const status = rec ? rec.status : 'ขาด';
+        const h = cfg.hours;
+        totalH += h;
+        let weight = 0, symbol = 'ข';
+        if(status === 'มา'){ symbol = '/'; weight = 1; }
+        else if(status === 'ลา'){ symbol = 'ล'; weight = 0.25; }
+        else if(status === 'สาย'){ symbol = 'ส'; weight = 0.5; }
+        attendedH += (h * weight);
+        for(let i = 1; i <= h; i++) rowData.push(symbol);
       });
-      const pct=totalH>0?(attendedH/totalH)*100:0;
-      // FIX #12: ตัด subject ให้ไม่เกิน 31 ตัวอักษร
-      rowData.push(totalH,attendedH,pct.toFixed(2)+'%',pct>=80?'ผ่าน':'มส.');
-      return rowData;
+      const pct = totalH > 0 ? (attendedH / totalH) * 100 : 0;
+      rowData.push(totalH, attendedH, pct.toFixed(2) + '%', pct >= 80 ? 'ผ่าน' : 'มส.');
+      worksheet.addRow(rowData);
     });
-    const ws=XLSX.utils.aoa_to_sheet([header].concat(rows));
-    const wb=XLSX.utils.book_new();
-    const sheetName = ('รายงาน_'+room).replace(/[:\\/?*\[\]]/g,'_').substring(0,31);
-    XLSX.utils.book_append_sheet(wb,ws,sheetName);
-    XLSX.writeFile(wb,'รายงานเช็กชื่อ_'+room+'_'+subj+'.xlsx');
-    showToast('สำเร็จ!','success');
-  } catch(e){ showToast('เกิดข้อผิดพลาด: '+(e.message||e),'error'); }
+
+    // ปรับแต่งฟอนต์และการหมุน
+    worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell, colNumber) => {
+        cell.font = { name: 'TH Sarabun New', size: 14 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        
+        // หมุน Header ตั้งแต่คอลัมน์วันที่ (คอลัมน์ที่ 4 เป็นต้นไป)
+        if (rowNumber === 1 && colNumber > 3) {
+          cell.alignment = { textRotation: 90, vertical: 'middle', horizontal: 'center' };
+          cell.font = { name: 'TH Sarabun New', size: 14, bold: true };
+        }
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `รายงานเช็กชื่อ_${room}_${subj}.xlsx`);
+    showToast('สำเร็จ!', 'success');
+
+  } catch (e) { showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); }
 }
 
 // ─── INIT ──────────────────────────────────────────────────
