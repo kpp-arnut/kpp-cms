@@ -326,7 +326,7 @@
           <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div class="card-title" style="margin:0">👥 รายชื่อนักเรียน</div>
             <div class="flex gap-2 flex-wrap">
-              <button class="btn btn-primary btn-sm" onclick="openAddStudentModal()">➕ เพิ่มนักเรียน</button>
+              <button class="btn btn-primary btn-sm" onclick="prepareAddStudent()">➕ เพิ่มนักเรียน</button>
               <button class="btn btn-success btn-sm" onclick="printAllQR()">🖨️ พิมพ์ QR ทั้งห้อง</button>
               <button class="btn btn-outline btn-sm" onclick="document.getElementById('import-file').click()">📂 Import CSV/XLSX</button>
               <input type="file" id="import-file" accept=".csv,.xlsx" style="display:none" onchange="importFile(this)">
