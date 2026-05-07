@@ -11,9 +11,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    /* ─── DESIGN TOKENS ─── */
     :root {
       --primary:      #0ea5e9;
       --primary-dark: #0284c7;
@@ -34,8 +34,6 @@
       --purple:       #a855f7;
       --purple-dark:  #7e22ce;
     }
-
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     body {
       font-family: 'Sarabun', sans-serif;
       background-color: var(--bg-dark);
@@ -44,19 +42,47 @@
       overflow-x: hidden;
     }
 
-    .bg-scene { position:fixed; inset:0; z-index:0; background:#050e30; overflow:hidden; pointer-events:none; }
+    .bg-scene {
+      position: fixed; inset: 0; z-index: 0;
+      background: #050e30; overflow: hidden; perspective: 1000px;
+    }
     .bg-scene::before {
       content:''; position:absolute; inset:0;
       background: radial-gradient(ellipse at 15% 25%, rgba(6,182,212,0.2) 0%, transparent 50%),
                   radial-gradient(ellipse at 85% 75%, rgba(14,165,233,0.15) 0%, transparent 50%);
     }
-    .dna-bg {
-      position:absolute; inset:0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='900'%3E%3Cpath d='M60,20 C110,80 160,140 110,200 C60,260 110,320 160,380' stroke='rgba(34,211,238,0.12)' fill='none' stroke-width='2'/%3E%3Ccircle cx='300' cy='150' r='3' fill='rgba(14,165,233,0.2)'/%3E%3Ccircle cx='800' cy='400' r='5' fill='rgba(6,182,212,0.15)'/%3E%3C/svg%3E");
-      background-size: cover;
-      animation: drift 40s infinite alternate;
+    .bg-scene::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at center, transparent 20%, #050e30 90%);
+      pointer-events: none;
     }
-    @keyframes drift { from{transform:scale(1)} to{transform:scale(1.08) translateX(-15px)} }
+
+    .dna-container {
+      position: absolute; top: 0; left: 60px;
+      width: 100px; height: 100%;
+      display: flex; flex-direction: column;
+      justify-content: space-around; opacity: 0.3;
+    }
+    .dna-dot {
+      width: 8px; height: 8px;
+      background: var(--accent); border-radius: 50%;
+      position: relative; box-shadow: 0 0 10px var(--accent);
+      animation: rotate3d 4s ease-in-out infinite;
+    }
+    .dna-dot::after {
+      content: ""; position: absolute;
+      width: 80px; height: 2px;
+      background: linear-gradient(90deg, var(--accent), transparent, var(--primary));
+      top: 50%; left: 50%; transform-origin: left; z-index: -1; opacity: 0.3;
+    }
+    .dna-dot.strand-2 {
+      background: var(--primary); box-shadow: 0 0 10px var(--primary);
+      animation-delay: -2s;
+    }
+    @keyframes rotate3d {
+      0%, 100% { transform: translateX(-40px) scale(1); z-index: 1; }
+      50% { transform: translateX(40px) scale(0.6); z-index: -1; opacity: 0.5; }
+    }
 
     .app { position:relative; z-index:1; }
 
@@ -74,11 +100,6 @@
     .logo {
       font-family:'Kanit'; font-weight:700; color:#fff;
       display:flex; align-items:center; gap:10px; font-size:1.05rem;
-    }
-    .logo-icon {
-      font-size:22px;
-      background: linear-gradient(135deg, var(--primary), var(--cyan));
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
     }
 
     nav { display:flex; gap:8px; }
@@ -99,12 +120,9 @@
     .page.active { display:block; }
 
     .card {
-      background:var(--bg-glass);
-      border:1px solid var(--border-glass);
-      border-radius:var(--radius-md);
-      padding:24px;
-      box-shadow:var(--shadow-lg);
-      backdrop-filter:blur(8px);
+      background:var(--bg-glass); border:1px solid var(--border-glass);
+      border-radius:var(--radius-md); padding:24px;
+      box-shadow:var(--shadow-lg); backdrop-filter:blur(8px);
     }
     .mb-4 { margin-bottom:20px; }
     .mt-4 { margin-top:20px; }
@@ -124,32 +142,22 @@
     .hero h1 { font-family:'Kanit'; font-size:1.9rem; margin-bottom:8px; color:#fff; }
     .hero p { color:var(--text-dim); font-size:1rem; }
 
-    .search-row {
-      display:flex; gap:10px; max-width:460px;
-      margin:22px auto 0;
-    }
+    .search-row { display:flex; gap:10px; max-width:460px; margin:22px auto 0; }
 
     input[type="text"], input[type="number"], input[type="date"], input[type="password"], select {
-      background:rgba(255,255,255,0.95);
-      border:2px solid transparent; border-radius:10px;
+      background:rgba(255,255,255,0.95); border:2px solid transparent; border-radius:10px;
       padding:10px 14px; font-family:'Sarabun'; font-size:0.97rem;
-      color:#0f172a; outline:none; width:100%;
-      transition:border-color 0.2s, box-shadow 0.2s;
+      color:#0f172a; outline:none; width:100%; transition:border-color 0.2s, box-shadow 0.2s;
     }
     input:focus, select:focus {
-      border-color:var(--primary);
-      box-shadow:0 0 0 3px rgba(14,165,233,0.2);
+      border-color:var(--primary); box-shadow:0 0 0 3px rgba(14,165,233,0.2);
     }
-    label {
-      display:block; margin-bottom:6px;
-      font-size:0.88rem; font-weight:600; color:var(--text-dim);
-    }
+    label { display:block; margin-bottom:6px; font-size:0.88rem; font-weight:600; color:var(--text-dim); }
 
     .btn {
       padding:10px 20px; border-radius:10px; font-weight:600; cursor:pointer;
       border:none; display:inline-flex; align-items:center; gap:7px;
-      transition:all 0.2s; font-family:'Sarabun'; font-size:0.95rem;
-      white-space:nowrap;
+      transition:all 0.2s; font-family:'Sarabun'; font-size:0.95rem; white-space:nowrap;
     }
     .btn:hover { transform:translateY(-1px); }
     .btn:active { transform:translateY(0); }
@@ -175,20 +183,17 @@
     .flex-1       { flex:1; }
     .flex-wrap    { flex-wrap:wrap; }
     .items-center { align-items:center; }
-    .items-baseline { align-items:baseline; }
     .justify-end  { justify-content:flex-end; }
     .justify-center { justify-content:center; }
     .justify-between { justify-content:space-between; }
     .text-center  { text-align:center; }
-    .text-right   { text-align:right; }
     .text-sm      { font-size:0.85rem; }
     .text-muted   { color:var(--text-dim); }
     .font-bold    { font-weight:700; }
 
     .stat-card {
       background:rgba(255,255,255,0.05); padding:18px;
-      border-radius:14px; text-align:center;
-      border:1px solid var(--border-glass);
+      border-radius:14px; text-align:center; border:1px solid var(--border-glass);
     }
     .stat-num  { font-family:'Kanit'; font-size:2rem; font-weight:700; display:block; line-height:1.1; }
     .stat-label { color:var(--text-dim); font-size:0.82rem; margin-top:6px; display:block; }
@@ -216,11 +221,11 @@
       padding:5px 12px; border-radius:20px; font-size:0.8rem; font-weight:600;
       display:inline-block; min-width:80px; text-align:center;
     }
-    .badge-green { background:rgba(16,185,129,0.2); color:#4ade80; border:1px solid rgba(16,185,129,0.35); }
-    .badge-red   { background:rgba(239,68,68,0.2);  color:#f87171; border:1px solid rgba(239,68,68,0.35); }
-    .badge-blue  { background:rgba(14,165,233,0.2); color:#7dd3fc; border:1px solid rgba(14,165,233,0.35); }
-    .badge-amber { background:rgba(245,158,11,0.2); color:#fbbf24; border:1px solid rgba(245,158,11,0.35); }
-    .badge-purple{ background:rgba(168,85,247,0.2); color:#c084fc; border:1px solid rgba(168,85,247,0.35); }
+    .badge-green  { background:rgba(16,185,129,0.2); color:#4ade80; border:1px solid rgba(16,185,129,0.35); }
+    .badge-red    { background:rgba(239,68,68,0.2);  color:#f87171; border:1px solid rgba(239,68,68,0.35); }
+    .badge-blue   { background:rgba(14,165,233,0.2); color:#7dd3fc; border:1px solid rgba(14,165,233,0.35); }
+    .badge-amber  { background:rgba(245,158,11,0.2); color:#fbbf24; border:1px solid rgba(245,158,11,0.35); }
+    .badge-purple { background:rgba(168,85,247,0.2); color:#c084fc; border:1px solid rgba(168,85,247,0.35); }
 
     .tog {
       padding:7px 16px; border-radius:8px; border:none; cursor:pointer;
@@ -247,10 +252,8 @@
 
     .tab-bar {
       display:flex; gap:6px; margin-bottom:20px;
-      background:rgba(255,255,255,0.04);
-      padding:6px; border-radius:14px;
-      border:1px solid var(--border-glass);
-      flex-wrap:wrap;
+      background:rgba(255,255,255,0.04); padding:6px; border-radius:14px;
+      border:1px solid var(--border-glass); flex-wrap:wrap;
     }
     .tab-btn {
       padding:9px 18px; border-radius:10px; border:none;
@@ -262,8 +265,7 @@
     .tab-btn.active { background:var(--primary); color:#fff; box-shadow:0 4px 12px rgba(14,165,233,0.35); }
 
     .scan-bar {
-      background:rgba(16,185,129,0.1);
-      border:1px solid rgba(16,185,129,0.3);
+      background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3);
       border-radius:12px; padding:12px 16px;
       display:flex; align-items:center; gap:12px; flex-wrap:wrap;
     }
@@ -288,8 +290,7 @@
     }
     .spinner {
       width:20px; height:20px; border-radius:50%;
-      border:3px solid rgba(14,165,233,0.2);
-      border-top-color:var(--primary);
+      border:3px solid rgba(14,165,233,0.2); border-top-color:var(--primary);
       animation:spin 0.8s linear infinite;
     }
     @keyframes spin { to{transform:rotate(360deg)} }
@@ -310,7 +311,6 @@
       box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);
       max-height:90vh; overflow-y:auto;
     }
-    .modal-lg { max-width:720px; }
     .modal-hd {
       font-family:'Kanit'; font-size:1.25rem; margin-bottom:22px;
       color:var(--accent); display:flex; align-items:center; gap:8px;
@@ -324,14 +324,6 @@
     .score-big { font-size:1.8rem; font-weight:700; color:var(--accent); }
     .score-sep { color:var(--text-dim); margin:0 2px; }
     .score-max { font-size:1.3rem; color:var(--text-dim); }
-
-    .sql-block {
-      background:#0f172a; border:1px solid var(--border-glass);
-      border-radius:10px; padding:18px;
-      font-family:monospace; font-size:0.82rem;
-      color:#7dd3fc; white-space:pre-wrap;
-      max-height:360px; overflow-y:auto;
-    }
 
     .att-side-label {
       background:rgba(15,23,42,0.9) !important;
@@ -354,7 +346,7 @@
       box-shadow:0 8px 24px rgba(0,0,0,0.4); animation:slideIn 0.3s ease;
       max-width:340px; font-family:'Sarabun';
     }
-    @keyframes slideIn { from{transform:translateX(120%); opacity:0} to{transform:translateX(0); opacity:1} }
+    @keyframes slideIn { from{transform:translateX(120%);opacity:0} to{transform:translateX(0);opacity:1} }
     .toast.success { background:#065f46; border:1px solid #10b981; color:#d1fae5; }
     .toast.error   { background:#7f1d1d; border:1px solid #ef4444; color:#fee2e2; }
     .toast.info    { background:#1e3a5f; border:1px solid #3b82f6; color:#bfdbfe; }
@@ -378,6 +370,17 @@
       border-bottom: 1px solid rgba(14,165,233,0.2) !important;
     }
 
+    /* ── Sync progress overlay ── */
+    #sync-overlay {
+      display:none; position:fixed; inset:0; z-index:2000;
+      background:rgba(0,0,0,0.7); backdrop-filter:blur(6px);
+      align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    }
+    #sync-overlay.open { display:flex; }
+    #sync-progress-text { font-family:'Kanit'; font-size:1.1rem; color:#fff; }
+    #sync-progress-bar-wrap { width:300px; height:10px; background:rgba(255,255,255,0.15); border-radius:20px; overflow:hidden; }
+    #sync-progress-bar { height:100%; width:0%; background:var(--primary); border-radius:20px; transition:width 0.3s; }
+
     @media (max-width:768px) {
       .grid-4 { grid-template-columns:repeat(2,1fr); }
       .grid-3 { grid-template-columns:repeat(2,1fr); }
@@ -394,35 +397,38 @@
 </head>
 <body>
 
-<div class="bg-scene"><div class="dna-bg"></div></div>
+<div class="bg-scene">
+  <div class="dna-container" id="dna-helix"></div>
+</div>
+
+<!-- Sync Progress Overlay -->
+<div id="sync-overlay">
+  <div class="spinner" style="width:40px;height:40px;border-width:4px"></div>
+  <div id="sync-progress-text">กำลังซิงค์...</div>
+  <div id="sync-progress-bar-wrap"><div id="sync-progress-bar"></div></div>
+</div>
 
 <div class="app">
-
-  <!-- ════ HEADER ════ -->
   <header>
     <div class="header-inner">
       <div class="logo">
-        <img src="KPP.png" alt="Logo" style="height: 1.5em; width: auto; object-fit: contain; vertical-align: middle;">
+        <img src="KPP.png" alt="Logo" style="height:1.5em;width:auto;object-fit:contain;vertical-align:middle;">
         <span>ระบบจัดการชั้นเรียนออนไลน์</span>
       </div>
       <nav>
-        <button class="nav-btn active" onclick="showPage('status')" id="nav-status">
-          📊 สถานะงาน
-        </button>
+        <button class="nav-btn active" onclick="showPage('status')" id="nav-status">📊 สถานะงาน</button>
         <button class="nav-btn" onclick="showPage('admin')" id="nav-admin">
-          🔐 ตรวจงาน
-          <span class="cfg-dot" id="cfg-dot"></span>
+          🔐 ตรวจงาน <span class="cfg-dot" id="cfg-dot"></span>
         </button>
-        <button class="nav-btn" onclick="doLogout()" id="nav-logout" style="display:none; color:#f87171; margin-left: 12px; border: 1px solid rgba(239,68,68,0.2);">
-            🚪 ออกจากระบบ
-          </button>
+        <button class="nav-btn" onclick="doLogout()" id="nav-logout"
+          style="display:none;color:#f87171;margin-left:12px;border:1px solid rgba(239,68,68,0.2);">
+          🚪 ออกจากระบบ
+        </button>
       </nav>
     </div>
   </header>
 
-  <!-- ════ MAIN ════ -->
   <main>
-
     <!-- ══ PAGE: STATUS ══ -->
     <div class="page active" id="page-status">
       <div class="hero">
@@ -518,12 +524,7 @@
 
       <div class="card mt-4" id="st-att-card" style="display:none">
         <div class="card-title">📅 ประวัติการเข้าเรียนทั้งหมด</div>
-        <div class="tbl-wrap">
-          <table id="st-att-grid-table" style="min-width:100%;border-collapse:collapse">
-            <thead id="st-att-grid-head"></thead>
-            <tbody id="st-att-grid-body"></tbody>
-          </table>
-        </div>
+        <div id="st-att-content"></div>
         <div class="flex gap-3 flex-wrap text-sm mt-3" style="color:#cbd5e1">
           <span>✅ มา</span><span>❌ ขาด</span><span>📝 ลา</span><span>⏰ สาย</span>
         </div>
@@ -560,6 +561,12 @@
           </div>
           <div class="flex gap-3 flex-wrap items-center">
             <button class="btn btn-primary" onclick="loadGrading()">📋 โหลดรายชื่อ</button>
+            <button class="btn btn-outline" onclick="syncFromClassroom()"
+              style="color:#4285F4;border-color:#4285F4;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png"
+                style="height:18px;margin-right:8px;vertical-align:middle;">
+              ซิงค์จาก Classroom
+            </button>
             <div class="scan-bar flex-1" style="min-width:240px">
               <div style="font-size:.9rem;font-weight:600;color:#065f46">📷 โหมดสแกน QR</div>
               <label class="sw"><input type="checkbox" id="scan-sw" onchange="setScanMode(this.checked)"><span class="sw-slider"></span></label>
@@ -732,7 +739,15 @@
         <div class="card">
           <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div class="card-title" style="margin:0">📝 รายการงานที่มอบหมาย</div>
-            <button class="btn btn-primary btn-sm" onclick="populateAsgnModal(); openModal('m-add-asgn')">➕ เพิ่มงาน</button>
+            <div class="flex gap-2 flex-wrap">
+              <button class="btn btn-outline btn-sm" onclick="syncFromClassroom()"
+                style="color:#4285F4;border-color:#4285F4;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png"
+                  style="height:16px;margin-right:6px;vertical-align:middle;">
+                ซิงค์จาก Classroom
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="populateAsgnModal();openModal('m-add-asgn')">➕ เพิ่มงาน</button>
+            </div>
           </div>
           <div class="tbl-wrap">
             <table>
@@ -743,7 +758,7 @@
                   <th style="width:90px">ห้อง</th>
                   <th style="width:130px">หมวดหมู่</th>
                   <th style="text-align:center;width:130px">คะแนนเต็ม (ผ่าน)</th>
-                  <th style="text-align:center;width:60px">ลบ</th>
+                  <th style="text-align:center;width:120px">จัดการ</th>
                 </tr>
               </thead>
               <tbody id="asgn-tbody"></tbody>
@@ -770,51 +785,59 @@
           </div>
         </div>
       </div>
-
     </div><!-- end page-admin -->
   </main>
 </div>
 
 <!-- ════ MODALS ════ -->
-
-<!-- Login -->
 <div class="modal-overlay" id="m-login">
   <div class="modal" style="max-width:380px;text-align:center">
     <div style="font-size:3.2rem;margin-bottom:8px">🔐</div>
     <div class="modal-hd" style="justify-content:center;margin-bottom:4px">เข้าสู่ระบบ ADMIN</div>
     <p class="text-sm text-muted mb-4">กรุณาใส่ข้อมูลเพื่อเข้าใช้งาน</p>
-    <div class="mb-3"><label>Username</label><input type="text" id="l-user" placeholder="Username"></div>
+    <div class="mb-3"><label>อีเมล</label><input type="text" id="l-user" placeholder="admin@school.ac.th"></div>
     <div class="mb-4"><label>Password</label><input type="password" id="l-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn btn-primary btn-lg w-full" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
-    <p id="l-err" class="text-sm mt-3" style="color:var(--red);display:none">❌ Username หรือ Password ไม่ถูกต้อง</p>
+    <p id="l-err" class="text-sm mt-3" style="color:var(--red);display:none">❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง</p>
     <div class="mt-4" style="border-top:1px solid var(--border-glass);padding-top:16px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('m-login');showPage('status')">← กลับหน้าค้นหา</button>
     </div>
   </div>
 </div>
 
-<!-- Add Student -->
 <div class="modal-overlay" id="m-add-st">
   <div class="modal">
     <div class="modal-hd">➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button></div>
     <div class="grid-2 gap-3 mb-3">
-      <div><label>รหัสนักเรียน *</label><input type="text" id="ns-id" placeholder="เช่น 12345"></div>
-      <div><label>เลขที่</label><input type="number" id="ns-seat" min="1" placeholder="1"></div>
-      <div><label>ชื่อ *</label><input type="text" id="ns-fn" placeholder="ชื่อ"></div>
-      <div><label>สกุล *</label><input type="text" id="ns-ln" placeholder="สกุล"></div>
-      <div style="grid-column:1/-1"><label>ชั้น/ห้อง *</label><input type="text" id="ns-cls" placeholder="เช่น ม.5/1"></div>
+      <div><label>รหัสนักเรียน *</label><input type="text" id="ns-id"></div>
+      <div><label>เลขที่</label><input type="number" id="ns-seat"></div>
+      <div><label>ชื่อ *</label><input type="text" id="ns-fn"></div>
+      <div><label>สกุล *</label><input type="text" id="ns-ln"></div>
+      <div style="grid-column:1/-1"><label>ชั้น/ห้อง *</label><input type="text" id="ns-cls"></div>
+      <div style="grid-column:1/-1">
+        <label>อีเมล (สำหรับซิงค์ Google Classroom) *</label>
+        <input type="text" id="ns-email" placeholder="example@school.ac.th">
+      </div>
     </div>
     <button class="btn btn-primary w-full" onclick="saveStudent()">💾 บันทึก</button>
   </div>
 </div>
 
-<!-- Add Assignment -->
 <div class="modal-overlay" id="m-add-asgn">
   <div class="modal">
-    <div class="modal-hd">➕ เพิ่มงาน / การสอบ <button class="modal-close" onclick="closeModal('m-add-asgn')">✕</button></div>
+    <div class="modal-hd">
+      <span id="asgn-modal-title">➕ เพิ่มงาน / การสอบ</span>
+      <button class="modal-close" onclick="closeModal('m-add-asgn')">✕</button>
+    </div>
+    <input type="hidden" id="na-id">
     <div class="grid-2 gap-3 mb-3">
+      <div style="grid-column:1/-1"><label>ชื่องาน *</label><input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1"></div>
       <div style="grid-column:1/-1">
-        <label>หมวดหมู่คะแนน (สัดส่วน) *</label>
+        <label>รายละเอียดงาน</label>
+        <textarea id="na-desc" style="width:100%;border-radius:10px;padding:10px;font-family:Sarabun;border:2px solid transparent;background:rgba(255,255,255,0.95);" rows="2" placeholder="เช่น ให้นักเรียนวาดภาพวงจรชีวิต..."></textarea>
+      </div>
+      <div>
+        <label>หมวดหมู่คะแนน *</label>
         <select id="na-cat">
           <option value="ก่อนกลางภาค">ก่อนกลางภาค (20%)</option>
           <option value="กลางภาค">กลางภาค (20%)</option>
@@ -822,8 +845,8 @@
           <option value="ปลายภาค">ปลายภาค (30%)</option>
         </select>
       </div>
-      <div style="grid-column:1/-1">
-        <label>รูปแบบงาน/การทดสอบ *</label>
+      <div>
+        <label>รูปแบบ *</label>
         <select id="na-type">
           <option value="เดี่ยว">งานเดี่ยว</option>
           <option value="กลุ่ม">งานกลุ่ม</option>
@@ -832,40 +855,23 @@
           <option value="สอบปลายภาค">สอบปลายภาค</option>
         </select>
       </div>
-      <div style="grid-column:1/-1">
-        <label>ชื่องาน *</label>
-        <input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1 หรือ Midterm Exam">
-      </div>
       <div>
         <label>วิชา *</label>
-        <select id="na-subj-sel" onchange="syncSubjInput(this.value)">
-          <option value="">— เลือกวิชา —</option>
-          <option value="__new__">✏️ เพิ่มวิชาใหม่...</option>
-        </select>
-        <input type="text" id="na-subj" placeholder="พิมพ์ชื่อวิชาใหม่" style="margin-top:6px;display:none">
+        <select id="na-subj-sel" onchange="syncSubjInput(this.value)"></select>
+        <input type="text" id="na-subj" style="margin-top:6px;display:none">
       </div>
       <div>
         <label>ห้องเรียน *</label>
-        <select id="na-room-sel" onchange="syncRoomInput(this.value)">
-          <option value="">— เลือกห้อง —</option>
-          <option value="__new__">✏️ เพิ่มห้องใหม่...</option>
-        </select>
-        <input type="text" id="na-room" placeholder="พิมพ์ชื่อห้องใหม่" style="margin-top:6px;display:none">
+        <select id="na-room-sel" onchange="syncRoomInput(this.value)"></select>
+        <input type="text" id="na-room" style="margin-top:6px;display:none">
       </div>
-      <div>
-        <label>คะแนนเต็ม</label>
-        <input type="number" id="na-max" value="10" min="1">
-      </div>
-      <div>
-        <label>เกณฑ์ผ่าน</label>
-        <input type="number" id="na-pass" value="5" min="0">
-      </div>
+      <div><label>คะแนนเต็ม</label><input type="number" id="na-max" value="10"></div>
+      <div><label>เกณฑ์ผ่าน</label><input type="number" id="na-pass" value="5"></div>
     </div>
-    <button class="btn btn-primary w-full btn-lg" onclick="saveAssignment()">💾 บันทึกและสร้างงาน</button>
+    <button class="btn btn-primary w-full btn-lg" onclick="saveAssignment()">💾 บันทึกข้อมูลงาน</button>
   </div>
 </div>
 
-<!-- QR Print -->
 <div class="modal-overlay" id="m-qr">
   <div class="modal" style="max-width:340px;text-align:center">
     <div class="modal-hd" style="justify-content:center;position:relative">
@@ -881,105 +887,142 @@
   </div>
 </div>
 
-<!-- Toast Container -->
 <div id="toasts"></div>
 
 <!-- ════ SCRIPT ════ -->
 <script>
-// ─────────────────────────────────────────────────────────
-//  CONFIG — แก้ไขค่านี้ให้ตรงกับ Supabase Project ของคุณ
-// ─────────────────────────────────────────────────────────
+// ─── CONFIG ───────────────────────────────────────────────
 const SUPABASE_URL = 'https://gfikiopjopxhogrhpcpx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_6pccrfn1Ng_FXHugztRsmw__kW_TtAL';
+const GOOGLE_CLIENT_ID = '292294403643-n756epva6fet5p7clkao3r2damoeai0r.apps.googleusercontent.com';
 
-// ─────────────────────────────────────────────────────────
-//  SUPABASE CLIENT
-// ─────────────────────────────────────────────────────────
 const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─────────────────────────────────────────────────────────
-//  STATE
-// ─────────────────────────────────────────────────────────
-var isAdmin        = false;
-var currentUser = null;
-var students       = [];
-var assignments    = [];
-var gradingRows    = [];
-var attendanceRows = [];
+let googleAccessToken = null;
+let isAdmin = false;
+let currentUser = null;
+let students = [];
+let assignments = [];
+let gradingRows = [];
+let attendanceRows = [];
 
-var html5QrCode     = null;
-var scanning        = false;
-var lastScannedText = '';
-var lastScannedAt   = 0;
+let html5QrCode = null, scanning = false, lastScannedText = '', lastScannedAt = 0;
+let attendanceQr = null, attendanceScanning = false, lastAttendanceScan = '', lastAttendanceScanAt = 0;
+let scorePieChart = null;
 
-var attendanceQr         = null;
-var attendanceScanning   = false;
-var lastAttendanceScan   = '';
-var lastAttendanceScanAt = 0;
+// ─── UI HELPERS ────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
 
-var scorePieChart = null;
+function showToast(msg, type = 'info') {
+  const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
 
-// ─────────────────────────────────────────────────────────
-//  SUPABASE HELPERS (แทน google.script.run)
-// ─────────────────────────────────────────────────────────
+function openModal(id)  { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el && el.id !== 'm-login') closeModal(el.id); });
+});
+
+function setSyncProgress(pct, msg) {
+  const overlay = $('sync-overlay');
+  if (pct <= 0) { overlay.classList.remove('open'); return; }
+  overlay.classList.add('open');
+  $('sync-progress-text').textContent = msg || 'กำลังซิงค์...';
+  $('sync-progress-bar').style.width = pct + '%';
+}
+
+// ─── NAVIGATION ────────────────────────────────────────────
+function showPage(name) {
+  stopQrScanner();
+  stopAttendanceScanner();
+  if (name === 'admin' && !isAdmin) { openModal('m-login'); return; }
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  $('page-' + name).classList.add('active');
+  $('nav-' + name).classList.add('active');
+  if (name === 'admin' && isAdmin) initAdmin();
+}
+
+// ─── LOGIN / LOGOUT ────────────────────────────────────────
+async function doLogin() {
+  const email = $('l-user').value.trim();
+  const pass  = $('l-pass').value;
+  const btn   = $('login-btn');
+  $('l-err').style.display = 'none';
+  btn.disabled = true; btn.textContent = 'กำลังยืนยันตัวตน...';
+  try {
+    const { data, error } = await _sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    isAdmin = true; currentUser = data.user;
+    closeModal('m-login');
+    showToast('เข้าสู่ระบบสำเร็จ!', 'success');
+    showPage('admin');
+  } catch (e) {
+    $('l-err').textContent = '❌ ' + (e.message === 'Invalid login credentials' ? 'อีเมลหรือรหัสผ่านผิด' : e.message);
+    $('l-err').style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+  }
+}
+
+async function doLogout() {
+  if (!confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) return;
+  await _sb.auth.signOut();
+  isAdmin = false; currentUser = null;
+  $('nav-logout').style.display = 'none';
+  $('cfg-dot').className = 'cfg-dot';
+  showPage('status');
+  location.reload();
+}
+
+// ─── SUPABASE HELPERS ──────────────────────────────────────
 const gasCall = async (fnName, ...args) => {
-  // --- Students ---
   if (fnName === 'getStudents') {
     const { data, error } = await _sb.from('students').select('*').order('classroom').order('seat_no');
-    if (error) throw error;
-    return data || [];
+    if (error) throw error; return data || [];
   }
   if (fnName === 'getStudentById') {
-    const { data } = await _sb.from('students').select('*').eq('id', args[0]).maybeSingle();
-    return data;
+    const { data } = await _sb.from('students').select('*').eq('id', args[0]).maybeSingle(); return data;
   }
   if (fnName === 'upsertStudent') {
     const { data, error } = await _sb.from('students').upsert(args[0], { onConflict: 'id' }).select();
-    if (error) throw error;
-    return data;
+    if (error) throw error; return data;
   }
   if (fnName === 'upsertStudents') {
     const { data, error } = await _sb.from('students').upsert(args[0], { onConflict: 'id' }).select();
-    if (error) throw error;
-    return data;
+    if (error) throw error; return data;
   }
   if (fnName === 'deleteStudent') {
     const { error } = await _sb.from('students').delete().eq('id', args[0]);
-    if (error) throw error;
-    return true;
+    if (error) throw error; return true;
   }
   if (fnName === 'updateBehaviorScore') {
-    let newScore = args[1];
-    if (newScore > 15) newScore = 15;
-    if (newScore < 0)  newScore = 0;
-    const { data, error } = await _sb.from('students').update({ behavior_score: newScore }).eq('id', args[0]).select();
-    if (error) throw error;
-    return data;
+    let s = Math.min(15, Math.max(0, args[1]));
+    const { data, error } = await _sb.from('students').update({ behavior_score: s }).eq('id', args[0]).select();
+    if (error) throw error; return data;
   }
-
-  // --- Assignments ---
   if (fnName === 'getAllAssignments') {
     const { data, error } = await _sb.from('assignments').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    if (error) throw error; return data || [];
   }
   if (fnName === 'getAssignmentById') {
-    const { data } = await _sb.from('assignments').select('*').eq('id', args[0]).maybeSingle();
-    return data;
+    const { data } = await _sb.from('assignments').select('*').eq('id', args[0]).maybeSingle(); return data;
   }
   if (fnName === 'createAssignment') {
     const d = args[0];
-    const payload = {
-      name: d.name, subject: d.subject, classroom: d.classroom,
-      category: d.category || 'ก่อนกลางภาค',
-      passing_score: d.passing_score || 0,
-      max_score: d.max_score, type: d.type || 'เดี่ยว'
-    };
+    const payload = { name: d.name, subject: d.subject, classroom: d.classroom,
+      category: d.category || 'ก่อนกลางภาค', passing_score: d.passing_score || 0,
+      max_score: d.max_score, type: d.type || 'เดี่ยว' };
     const { data: newA, error } = await _sb.from('assignments').insert(payload).select().single();
     if (error) throw error;
-    // สร้างแถวคะแนนว่างให้นักเรียนทุกคนในห้อง
     const { data: stList } = await _sb.from('students').select('id').eq('classroom', d.classroom);
-    if (stList && stList.length) {
+    if (stList?.length) {
       const grPay = stList.map(s => ({ student_id: s.id, assignment_id: newA.id, score: null, max_score: d.max_score, status: 'not_sent' }));
       await _sb.from('grades').upsert(grPay, { onConflict: 'student_id,assignment_id' });
     }
@@ -987,20 +1030,15 @@ const gasCall = async (fnName, ...args) => {
   }
   if (fnName === 'deleteAssignment') {
     const { error } = await _sb.from('assignments').delete().eq('id', args[0]);
-    if (error) throw error;
-    return true;
+    if (error) throw error; return true;
   }
-
-  // --- Grades ---
   if (fnName === 'getGradesByStudent') {
     const { data, error } = await _sb.from('grades').select('*, assignments(*)').eq('student_id', args[0]);
-    if (error) throw error;
-    return data || [];
+    if (error) throw error; return data || [];
   }
   if (fnName === 'getGradesByAssignment') {
     const { data, error } = await _sb.from('grades').select('*').eq('assignment_id', args[0]);
-    if (error) throw error;
-    return data || [];
+    if (error) throw error; return data || [];
   }
   if (fnName === 'saveGrades') {
     const now = new Date().toISOString();
@@ -1009,44 +1047,37 @@ const gasCall = async (fnName, ...args) => {
       score: r.score, max_score: r.max_score, status: r.status, updated_at: now
     }));
     const { data, error } = await _sb.from('grades').upsert(payload, { onConflict: 'student_id,assignment_id' }).select();
-    if (error) throw error;
-    return data;
+    if (error) throw error; return data;
   }
   if (fnName === 'getGradesByRoom') {
     const [classroom, subject] = args;
     const { data: asgns } = await _sb.from('assignments').select('*').eq('classroom', classroom).eq('subject', subject).order('created_at');
     const { data: sts }   = await _sb.from('students').select('*').eq('classroom', classroom).order('seat_no');
     if (!asgns?.length || !sts?.length) return { students: sts || [], assignments: asgns || [], grades: [] };
-    const aIds = asgns.map(a => a.id);
-    const sIds = sts.map(s => s.id);
+    const aIds = asgns.map(a => a.id), sIds = sts.map(s => s.id);
     const { data: grs } = await _sb.from('grades').select('*').in('student_id', sIds).in('assignment_id', aIds);
     return { students: sts, assignments: asgns, grades: grs || [] };
   }
-
-  // --- Attendance ---
   if (fnName === 'getAttendanceByStudent') {
     const { data, error } = await _sb.from('attendance').select('*').eq('student_id', args[0]).order('attendance_date', { ascending: false });
-    if (error) throw error;
-    return data || [];
+    if (error) throw error; return data || [];
   }
   if (fnName === 'getAttendanceByDate') {
     const [classroom, date] = args;
     const { data: sts } = await _sb.from('students').select('id').eq('classroom', classroom);
     if (!sts?.length) return [];
     const sIds = sts.map(s => s.id);
-    const { data } = await _sb.from('attendance').select('*').in('student_id', sIds).eq('attendance_date', date).order('student_id');
+    const { data } = await _sb.from('attendance').select('*').in('student_id', sIds).eq('attendance_date', date);
     return data || [];
   }
   if (fnName === 'saveAttendance') {
     const now = new Date().toISOString();
     const payload = args[0].map(r => ({
       student_id: r.student_id, attendance_date: r.attendance_date,
-      subject: r.subject, status: r.status,
-      remark: r.remark || '', hours: r.hours || 1, updated_at: now
+      subject: r.subject, status: r.status, remark: r.remark || '', hours: r.hours || 1, updated_at: now
     }));
     const { data, error } = await _sb.from('attendance').upsert(payload, { onConflict: 'student_id,attendance_date,subject' }).select();
-    if (error) throw error;
-    return data;
+    if (error) throw error; return data;
   }
   if (fnName === 'getAttendanceForRoom') {
     const { data: sts } = await _sb.from('students').select('id').eq('classroom', args[0]);
@@ -1055,346 +1086,159 @@ const gasCall = async (fnName, ...args) => {
     const { data } = await _sb.from('attendance').select('*').in('student_id', sIds).order('attendance_date', { ascending: true });
     return data || [];
   }
-
-  // --- Scan helpers ---
   if (fnName === 'markStudentSubmitted') {
     const [studentId, assignmentId] = args;
     const student    = await gasCall('getStudentById', studentId);
     const assignment = await gasCall('getAssignmentById', assignmentId);
     if (!student || !assignment) throw new Error('ไม่พบข้อมูล');
-    const saved = await gasCall('saveGrades', [{
-      student_id: studentId, assignment_id: assignmentId,
-      score: assignment.max_score, max_score: assignment.max_score, status: 'checked'
-    }]);
+    const saved = await gasCall('saveGrades', [{ student_id: studentId, assignment_id: assignmentId, score: assignment.max_score, max_score: assignment.max_score, status: 'checked' }]);
     return { success: true, student, assignment, saved };
   }
   if (fnName === 'markStudentAttendance') {
     const [studentId, date, status, remark] = args;
     const student = await gasCall('getStudentById', studentId);
     if (!student) throw new Error('ไม่พบนักเรียน');
-    const saved = await gasCall('saveAttendance', [{
-      student_id: studentId, attendance_date: date, status, remark: remark || ''
-    }]);
+    const saved = await gasCall('saveAttendance', [{ student_id: studentId, attendance_date: date, status, remark: remark || '' }]);
     return { success: true, student, attendance_date: date, status, saved };
   }
-
   throw new Error('Unknown function: ' + fnName);
 };
 
-// ─────────────────────────────────────────────────────────
-//  UI HELPERS
-// ─────────────────────────────────────────────────────────
-function $(id) { return document.getElementById(id); }
-
-function showToast(msg, type) {
-  type = type || 'info';
-  var icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
-  var el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.innerHTML = '<span>' + (icons[type]||'ℹ️') + '</span><span>' + msg + '</span>';
-  $('toasts').appendChild(el);
-  setTimeout(function() { el.remove(); }, 3800);
-}
-
-function openModal(id)  { $(id).classList.add('open'); }
-function closeModal(id) { $(id).classList.remove('open'); }
-
-document.querySelectorAll('.modal-overlay').forEach(function(el) {
-  el.addEventListener('click', function(e) {
-    if (e.target === el && el.id !== 'm-login') closeModal(el.id);
-  });
-});
-
-// ─────────────────────────────────────────────────────────
-//  NAVIGATION
-// ─────────────────────────────────────────────────────────
-function showPage(name) {
-  stopQrScanner();
-  stopAttendanceScanner();
-  
-  // 1. ถ้ากดปุ่ม 'admin' (ตรวจงาน) และยังไม่ได้ล็อกอิน ให้เด้งหน้าล็อกอิน
-  if (name === 'admin' && !isAdmin) {
-    openModal('m-login');
-    return; // หยุดการทำงาน ไม่เปลี่ยนหน้า
-  }
-
-  // 2. ถ้าล็อกอินแล้ว หรือกดไปหน้า 'status' (หน้าแรก) ให้เปลี่ยนหน้าตามปกติ
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  
-  $('page-' + name).classList.add('active');
-  $('nav-' + name).classList.add('active');
-  
-  // 3. ถ้าเป็นหน้า admin และล็อกอินแล้ว ให้โหลดข้อมูล
-  if (name === 'admin' && isAdmin) {
-    initAdmin();
-  }
-}
-
-// ─────────────────────────────────────────────────────────
-//  LOGIN — ใช้ username/password แบบ client-side
-// ─────────────────────────────────────────────────────────
-async function doLogin() {
-  var email = $('l-user').value.trim(); // เปลี่ยนจาก username เป็น email
-  var pass = $('l-pass').value;
-  var btn = $('login-btn');
-  
-  $('l-err').style.display = 'none';
-  btn.disabled = true; 
-  btn.textContent = 'กำลังยืนยันตัวตน...';
-
-  try {
-    // ใช้คำสั่งของ Supabase Auth
-    const { data, error } = await _sb.auth.signInWithPassword({
-      email: email,
-      password: pass,
-    });
-
-    if (error) throw error;
-
-    // ถ้าผ่าน
-    isAdmin = true;
-    currentUser = data.user;
-    closeModal('m-login');
-    initAdmin();
-    showToast('เข้าสู่ระบบสำเร็จ!', 'success');
-  } catch (e) {
-    console.error(e);
-    $('l-err').textContent = '❌ ' + (e.message === 'Invalid login credentials' ? 'อีเมลหรือรหัสผ่านผิด' : e.message);
-    $('l-err').style.display = 'block';
-  } finally {
-    btn.disabled = false; 
-    btn.textContent = 'เข้าสู่ระบบ';
-  }
-}
-
-// ─────────────────────────────────────────────────────────
-//  ADMIN TABS
-// ─────────────────────────────────────────────────────────
-var TABS = ['grading','attendance','behavior','students','asgn','export'];
+// ─── ADMIN INIT ────────────────────────────────────────────
+const TABS = ['grading','attendance','behavior','students','asgn','export'];
 
 function adminTab(name) {
-  stopQrScanner();
-  stopAttendanceScanner();
-  TABS.forEach(function(t) {
-    var tab = $('tab-' + t);
-    if (tab) tab.style.display = (t === name) ? 'block' : 'none';
-    var btn = $('t-' + t);
-    if (btn) btn.className = 'tab-btn' + (t === name ? ' active' : '');
+  stopQrScanner(); stopAttendanceScanner();
+  TABS.forEach(t => {
+    const tab = $('tab-' + t); if (tab) tab.style.display = t === name ? 'block' : 'none';
+    const btn = $('t-' + t);   if (btn) btn.className = 'tab-btn' + (t === name ? ' active' : '');
   });
   if (name === 'behavior') renderBehaviorList();
 }
 
-
-async function doLogout() {
-  if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
-    await _sb.auth.signOut();
-    isAdmin = false;
-    currentUser = null;
-    
-    // ซ่อนปุ่ม Logout
-    if ($('nav-logout')) $('nav-logout').style.display = 'none';
-    if ($('cfg-dot')) $('cfg-dot').className = 'cfg-dot';
-    
-    // กลับไปหน้าแรกและรีเฟรชเพื่อความสะอาดของข้อมูล
-    showPage('status');
-    location.reload(); 
-  }
-}
-
-  
-// ─────────────────────────────────────────────────────────
-//  BEHAVIOR TAB
-// ─────────────────────────────────────────────────────────
-function renderBehaviorList() {
-  var q    = (($('bh-search') && $('bh-search').value) || '').toLowerCase();
-  var list = students.filter(function(s) {
-    return s.id.toLowerCase().includes(q) ||
-           s.first_name.toLowerCase().includes(q) ||
-           s.last_name.toLowerCase().includes(q);
-  });
-  var tb = $('bh-tbody');
-  if (!tb) return;
-  tb.innerHTML = list.length ? list.map(function(s) {
-    var score = s.behavior_score !== undefined ? s.behavior_score : 10;
-    return '<tr>' +
-      '<td style="font-size:.85rem">' + s.id + '</td>' +
-      '<td><strong>' + s.first_name + ' ' + s.last_name + '</strong></td>' +
-      '<td><span class="badge badge-blue">' + s.classroom + '</span></td>' +
-      '<td style="text-align:center"><span id="bh-val-' + s.id + '" class="score-big" style="font-size:1.6rem;color:var(--purple)">' + score + '</span></td>' +
-      '<td style="text-align:center"><div class="flex justify-center gap-2">' +
-        '<button class="btn btn-sm btn-danger" onclick="modifyBehavior(\'' + s.id + '\',-1)">หัก 1</button>' +
-        '<button class="btn btn-sm btn-success" onclick="modifyBehavior(\'' + s.id + '\',1)">บวก 1</button>' +
-      '</div></td></tr>';
-  }).join('') : '<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text-dim)">ไม่พบข้อมูล</td></tr>';
-}
-
-async function modifyBehavior(studentId, change) {
-  var scoreEl      = $('bh-val-' + studentId);
-  var currentScore = parseFloat(scoreEl.innerText);
-  var newScore     = currentScore + change;
-  if (newScore < 0)  { showToast('คะแนนจิตพิสัยต่ำสุดคือ 0', 'warn'); return; }
-  if (newScore > 15) { showToast('คะแนนจิตพิสัยสูงสุดคือ 15', 'warn'); return; }
-  try {
-    await gasCall('updateBehaviorScore', studentId, newScore);
-    scoreEl.innerText = newScore;
-    var idx = students.findIndex(function(s) { return s.id === studentId; });
-    if (idx !== -1) students[idx].behavior_score = newScore;
-    showToast('อัปเดตคะแนนพฤติกรรมเรียบร้อย', 'success');
-  } catch (e) {
-    showToast('บันทึกล้มเหลว: ' + e, 'error');
-  }
-}
-
-// ─────────────────────────────────────────────────────────
-//  INIT ADMIN
-// ─────────────────────────────────────────────────────────
 async function initAdmin() {
   $('nav-logout').style.display = 'flex';
   try {
-    var results = await Promise.all([
-      gasCall('getStudents'),
-      gasCall('getAllAssignments')
-    ]);
-    students    = results[0] || [];
-    assignments = results[1] || [];
+    const [s, a] = await Promise.all([gasCall('getStudents'), gasCall('getAllAssignments')]);
+    students = s; assignments = a;
     $('cfg-dot').className = 'cfg-dot ok';
   } catch (e) {
-    showToast('โหลดข้อมูลล้มเหลว: ' + e, 'error');
-    return;
+    showToast('โหลดข้อมูลล้มเหลว: ' + e, 'error'); return;
   }
   populateDropdowns();
-  if (!$('att-date').value) {
-    $('att-date').value = new Date().toISOString().slice(0, 10);
-  }
-  renderStudentTable();
-  renderAsgnTable();
-  adminTab('grading');
+  if (!$('att-date').value) $('att-date').value = new Date().toISOString().slice(0, 10);
+  renderStudentTable(); renderAsgnTable(); adminTab('grading');
 }
 
-// ─────────────────────────────────────────────────────────
-//  DROPDOWNS
-// ─────────────────────────────────────────────────────────
+// ─── DROPDOWNS ─────────────────────────────────────────────
 function populateDropdowns() {
-  var rooms = [...new Set(students.map(function(s) { return s.classroom; }))].sort();
-  var subjs = [...new Set(assignments.map(function(a) { return a.subject; }))].sort();
-
-  ['g-room','att-room','f-room','exp-room','exp-att-room'].forEach(function(id) {
-    var el = $(id); if (!el) return;
-    var cur = el.value;
-    var ph  = (id === 'f-room') ? '<option value="">ทุกห้อง</option>' : '<option value="">— เลือกห้อง —</option>';
-    el.innerHTML = ph + rooms.map(function(r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
+  const rooms = [...new Set(students.map(s => s.classroom))].sort();
+  const subjs = [...new Set(assignments.map(a => a.subject))].sort();
+  ['g-room','att-room','f-room','exp-room','exp-att-room'].forEach(id => {
+    const el = $(id); if (!el) return;
+    const cur = el.value;
+    const ph  = id === 'f-room' ? '<option value="">ทุกห้อง</option>' : '<option value="">— เลือกห้อง —</option>';
+    el.innerHTML = ph + rooms.map(r => `<option value="${r}">${r}</option>`).join('');
     el.value = cur;
   });
-
-  ['g-subj','att-subj','exp-subj','exp-att-subj'].forEach(function(id) {
-    var el = $(id); if (!el) return;
-    var cur = el.value;
-    el.innerHTML = '<option value="">— เลือกวิชา —</option>' +
-      subjs.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('');
+  ['g-subj','att-subj','exp-subj','exp-att-subj'].forEach(id => {
+    const el = $(id); if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">— เลือกวิชา —</option>' + subjs.map(s => `<option value="${s}">${s}</option>`).join('');
     el.value = cur;
   });
-
   syncAssignSelect();
 }
 
 function syncAssignSelect() {
-  var subj = $('g-subj').value;
-  var room = $('g-room').value;
-  var el   = $('g-asgn');
-  var cur  = el.value;
+  const subj = $('g-subj').value, room = $('g-room').value, el = $('g-asgn');
+  const cur  = el.value;
   el.innerHTML = '<option value="">— เลือกงาน —</option>';
-  assignments
-    .filter(function(a) { return (!subj || a.subject === subj) && (!room || a.classroom === room); })
-    .forEach(function(a) {
-      el.innerHTML += '<option value="' + a.id + '">' + a.name + '</option>';
-    });
+  assignments.filter(a => (!subj || a.subject === subj) && (!room || a.classroom === room))
+    .forEach(a => { el.innerHTML += `<option value="${a.id}">${a.name}</option>`; });
   el.value = cur;
 }
 
-// ─────────────────────────────────────────────────────────
-//  STATUS PAGE
-// ─────────────────────────────────────────────────────────
+// ─── STATUS PAGE ───────────────────────────────────────────
 async function searchStatus() {
-  var sid = $('st-id-inp').value.trim();
+  const sid = $('st-id-inp').value.trim();
   if (!sid) { showToast('กรุณาใส่รหัสนักเรียน', 'error'); return; }
 
-  $('st-results').style.display  = 'none';
+  $('st-results').style.display = 'none';
   $('st-att-card').style.display = 'none';
-  $('st-empty').style.display    = 'none';
+  $('st-empty').style.display = 'none';
 
   try {
-    var results = await Promise.all([
+    const [grades, attendance, stInfo] = await Promise.all([
       gasCall('getGradesByStudent', sid),
       gasCall('getAttendanceByStudent', sid),
       gasCall('getStudentById', sid)
     ]);
-    var grades     = results[0] || [];
-    var attendance = results[1] || [];
-    var stInfo     = results[2];
 
     if (!stInfo) { $('st-empty').style.display = 'block'; return; }
 
-    var fullName = stInfo.first_name + ' ' + stInfo.last_name;
-    var metaText = 'ชั้น ' + stInfo.classroom + ' เลขที่ ' + stInfo.seat_no + ' | รหัส: ' + sid;
-    $('st-name').textContent         = fullName;
-    $('st-meta').textContent         = metaText;
+    const fullName = stInfo.first_name + ' ' + stInfo.last_name;
+    $('st-name').textContent = fullName;
+    $('st-meta').textContent = 'ชั้น ' + stInfo.classroom + ' เลขที่ ' + stInfo.seat_no + ' | รหัส: ' + sid;
     $('st-name-display').textContent = fullName;
     $('st-meta-display').textContent = 'ชั้น ' + stInfo.classroom + ' เลขที่ ' + stInfo.seat_no;
 
-    var catStats = {
-      'ก่อนกลางภาค': { current:0, max:0, weight:20 },
-      'กลางภาค':     { current:0, max:0, weight:20 },
-      'หลังกลางภาค': { current:0, max:0, weight:20 },
-      'ปลายภาค':    { current:0, max:0, weight:30 }
+    const catStats = {
+      'ก่อนกลางภาค': { current: 0, max: 0, weight: 20 },
+      'กลางภาค':     { current: 0, max: 0, weight: 20 },
+      'หลังกลางภาค': { current: 0, max: 0, weight: 20 },
+      'ปลายภาค':     { current: 0, max: 0, weight: 30 }
     };
 
-    var uniqueMap = {};
-    grades.forEach(function(g) {
-      var aid = g.assignment_id;
-      var sc  = parseFloat(g.score || 0);
-      if (!uniqueMap[aid] || sc > parseFloat(uniqueMap[aid].score || 0)) {
-        uniqueMap[aid] = g;
-      }
+    // deduplicate by assignment_id (keep highest score)
+    const uniqueMap = {};
+    grades.forEach(g => {
+      if (!g.assignments) return;
+      const aid = g.assignment_id;
+      const sc  = parseFloat(g.score || 0);
+      if (!uniqueMap[aid] || sc > parseFloat(uniqueMap[aid].score || 0)) uniqueMap[aid] = g;
     });
 
-    var sorted = Object.values(uniqueMap).sort(function(a, b) {
-      var sa = ((a.assignments || {}).subject || '').toLowerCase();
-      var sb = ((b.assignments || {}).subject || '').toLowerCase();
-      return sa.localeCompare(sb) || ((a.assignments || {}).name || '').localeCompare((b.assignments || {}).name || '');
+    const sorted = Object.values(uniqueMap).sort((a, b) => {
+      const sa = (a.assignments.subject||'').toLowerCase(), sb = (b.assignments.subject||'').toLowerCase();
+      const na = (a.assignments.name||'').toLowerCase(),   nb = (b.assignments.name||'').toLowerCase();
+      return sa.localeCompare(sb) || na.localeCompare(nb);
     });
 
-    var countOk = 0, countWait = 0, countNo = 0;
-    var tbody    = $('st-tbody');
+    let countOk = 0, countWait = 0, countNo = 0;
+    const tbody = $('st-tbody');
     tbody.innerHTML = '';
-    var lastSubject = null;
+    let lastSubject = null;
 
-    sorted.forEach(function(g) {
-      var a    = g.assignments || {};
-      var cat  = a.category   || 'ก่อนกลางภาค';
-      var type = a.type       || 'เดี่ยว';
-      var sc   = parseFloat(g.score || 0);
-      var max  = parseFloat(a.max_score || 0);
-      var pass = parseFloat(a.passing_score || 0);
+    if (!sorted.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">ยังไม่มีรายการงานในขณะนี้</td></tr>';
+    }
+
+    sorted.forEach(g => {
+      const a = g.assignments || {};
+      const cat  = a.category || 'ก่อนกลางภาค';
+      const type = a.type || 'ทั่วไป';
+      const sc   = parseFloat(g.score || 0);
+      const max  = parseFloat(a.max_score || 10);
+      const pass = parseFloat(a.passing_score || 0);
 
       if (catStats[cat]) {
         catStats[cat].max += max;
         if (g.status === 'checked') catStats[cat].current += sc;
       }
 
-      var subjectName = a.subject || '—';
+      const subjectName = a.subject || 'วิชาทั่วไป';
       if (subjectName !== lastSubject) {
-        tbody.innerHTML += '<tr class="tr-subject-group"><td colspan="5">📚 ' + subjectName + '</td></tr>';
+        tbody.innerHTML += `<tr class="tr-subject-group"><td colspan="5">📚 ${subjectName}</td></tr>`;
         lastSubject = subjectName;
       }
 
-      var badge = '', rowClass = '';
+      let badge = '', rowClass = '';
       if (g.status === 'checked') {
-        if (sc < pass && pass > 0) {
-          badge = '<span class="badge badge-red">❌ ไม่ผ่าน</span>'; rowClass = 'row-ขาด';
-        } else {
-          badge = '<span class="badge badge-green">✅ ส่งแล้ว</span>'; rowClass = 'row-มา';
-        }
+        badge = (sc < pass && pass > 0)
+          ? '<span class="badge badge-red">❌ ไม่ผ่าน</span>'
+          : '<span class="badge badge-green">✅ ส่งแล้ว</span>';
+        rowClass = (sc < pass && pass > 0) ? 'row-ขาด' : 'row-มา';
         countOk++;
       } else if (g.status === 'waiting') {
         badge = '<span class="badge badge-amber">⏳ รอตรวจ</span>'; rowClass = 'row-สาย'; countWait++;
@@ -1402,81 +1246,66 @@ async function searchStatus() {
         badge = '<span class="badge badge-red">🚫 ยังไม่ส่ง</span>'; rowClass = 'row-not-sent'; countNo++;
       }
 
-      var typeClass = type.includes('สอบ') ? 'badge-amber' : 'badge-blue';
-      var scoreHtml = (g.score !== null && g.score !== undefined)
-        ? '<span class="score-big" style="font-size:1.4rem">' + g.score + '</span><span class="score-sep"> / </span><span class="score-max">' + max + '</span>'
+      const typeClass  = type.includes('สอบ') ? 'badge-amber' : 'badge-blue';
+      const scoreHtml  = g.status === 'checked'
+        ? `<span class="score-big" style="font-size:1.4rem">${g.score}</span><span class="score-sep"> / </span><span class="score-max">${max}</span>`
         : '<span class="text-muted">—</span>';
 
-      tbody.innerHTML +=
-        '<tr class="' + rowClass + '">' +
-        '<td><small class="text-muted">' + cat + '</small></td>' +
-        '<td><strong>' + (a.name || '—') + '</strong></td>' +
-        '<td style="text-align:center"><span class="badge ' + typeClass + '">' + type + '</span></td>' +
-        '<td style="text-align:center">' + badge + '</td>' +
-        '<td style="text-align:center">' + scoreHtml + '</td>' +
-        '</tr>';
+      tbody.innerHTML += `
+        <tr class="${rowClass}">
+          <td><small class="text-muted">${cat}</small></td>
+          <td>
+            <strong>${a.name || '—'}</strong>
+            ${a.description ? `<div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;line-height:1.4;">📝 ${a.description}</div>` : ''}
+          </td>
+          <td style="text-align:center"><span class="badge ${typeClass}">${type}</span></td>
+          <td style="text-align:center">${badge}</td>
+          <td style="text-align:center">${scoreHtml}</td>
+        </tr>`;
     });
 
-    var weightedTotal = 0;
-    var chartPoints   = [];
-    ['ก่อนกลางภาค','กลางภาค','หลังกลางภาค','ปลายภาค'].forEach(function(lbl) {
-      var s  = catStats[lbl];
-      var pt = s.max > 0 ? (s.current / s.max) * s.weight : 0;
-      weightedTotal += pt;
-      chartPoints.push(pt.toFixed(2));
+    // weighted score
+    let weightedTotal = 0;
+    const chartPoints = [];
+    ['ก่อนกลางภาค','กลางภาค','หลังกลางภาค','ปลายภาค'].forEach(lbl => {
+      const s  = catStats[lbl];
+      const pt = s.max > 0 ? (s.current / s.max) * s.weight : 0;
+      weightedTotal += pt; chartPoints.push(pt.toFixed(2));
     });
-
-    var behaviorScore = parseFloat(stInfo.behavior_score !== undefined ? stInfo.behavior_score : 10);
+    const behaviorScore = parseFloat(stInfo.behavior_score ?? 10);
     chartPoints.push(behaviorScore.toFixed(2));
-    var grandTotal = weightedTotal + behaviorScore;
+    const grandTotal = weightedTotal + behaviorScore;
 
-    if ($('final-weighted-score')) {
-        $('final-weighted-score').textContent = grandTotal.toFixed(1);
-        
-        if (grandTotal > 100) {
-            $('final-weighted-score').style.color = 'var(--amber)';
-        } else {
-            $('final-weighted-score').style.color = '#fff';
-        }
-    }
+    $('final-weighted-score').textContent = grandTotal.toFixed(1);
+    $('final-weighted-score').style.color = grandTotal >= 50 ? '#fff' : 'var(--red)';
     $('cnt-all').textContent  = sorted.length;
     $('cnt-ok').textContent   = countOk;
     $('cnt-wait').textContent = countWait;
     $('cnt-no').textContent   = countNo;
 
-    if ($('final-weighted-score')) $('final-weighted-score').textContent = grandTotal.toFixed(1);
-    if ($('behavior-score-text')) $('behavior-score-text').textContent = behaviorScore + '/15';
-    if ($('behavior-progress-fill')) {
-      var bhPct = (behaviorScore / 15) * 100;
-      $('behavior-progress-fill').style.width = bhPct + '%';
-      $('behavior-progress-fill').style.background = behaviorScore > 10 ? 'linear-gradient(90deg,var(--purple),#ec4899)' : 'var(--purple)';
-    }
+    $('behavior-score-text').textContent = behaviorScore + '/15';
+    const bhPct = (behaviorScore / 15) * 100;
+    $('behavior-progress-fill').style.width = bhPct + '%';
+    $('behavior-progress-fill').style.background = behaviorScore > 10 ? 'linear-gradient(90deg,var(--purple),#ec4899)' : 'var(--purple)';
 
-    var subPct = sorted.length > 0 ? ((countOk + countWait) / sorted.length * 100) : 0;
-    if ($('global-progress-fill')) {
-      $('global-progress-fill').style.width = subPct + '%';
-      $('global-progress-text').textContent  = subPct.toFixed(0) + '%';
-    }
+    const subPct = sorted.length > 0 ? ((countOk + countWait) / sorted.length * 100) : 0;
+    $('global-progress-fill').style.width = subPct + '%';
+    $('global-progress-text').textContent = subPct.toFixed(0) + '%';
 
     updatePieChart(chartPoints);
 
-    if (attendance && attendance.length > 0) {
-      // จัดกลุ่มข้อมูลตามวิชา
-      const groupedAtt = attendance.reduce((acc, curr) => {
-        const subj = curr.subject || 'ไม่ระบุวิชา';
+    // attendance grid
+    const attCard    = $('st-att-card');
+    const attContent = $('st-att-content');
+    attContent.innerHTML = '';
+    if (attendance?.length) {
+      const grouped = attendance.reduce((acc, cur) => {
+        const subj = cur.subject || 'ไม่ระบุวิชา';
         if (!acc[subj]) acc[subj] = [];
-        acc[subj].push(curr);
+        acc[subj].push(cur);
         return acc;
       }, {});
-    
-      // ล้างค่าเก่าใน Container ก่อน (ถ้ามี)
-      const attCard = $('st-att-card');
-      attCard.innerHTML = '<div class="card-title">📅 ประวัติการเข้าเรียนแยกรายวิชา</div>';
-      
-      // วนลูปสร้างตารางแยกตามวิชา
-      for (const subj in groupedAtt) {
-        renderAttendanceGrid(subj, groupedAtt[subj]); 
-      }
+      for (const subj in grouped) renderAttendanceGrid(subj, grouped[subj], attContent);
       attCard.style.display = 'block';
     }
 
@@ -1485,19 +1314,23 @@ async function searchStatus() {
 
   } catch (e) {
     console.error(e);
-    showToast('เกิดข้อผิดพลาด: ' + e, 'error');
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
   }
 }
 
 function updatePieChart(dataPoints) {
-  var ctx = $('scoreChart').getContext('2d');
-  if (scorePieChart) { scorePieChart.destroy(); }
+  const ctx = $('scoreChart').getContext('2d');
+  if (scorePieChart) scorePieChart.destroy();
   Chart.register(ChartDataLabels);
   scorePieChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: ['ก่อนกลางภาค','กลางภาค','หลังกลางภาค','ปลายภาค','จิตพิสัย'],
-      datasets: [{ data: dataPoints, backgroundColor: ['#0ea5e9','#10b981','#f59e0b','#ef4444','#a855f7'], borderWidth: 2, borderColor: '#050e30', hoverOffset: 15 }]
+      datasets: [{
+        data: dataPoints,
+        backgroundColor: ['#0ea5e9','#10b981','#f59e0b','#ef4444','#a855f7'],
+        borderWidth: 2, borderColor: '#050e30', hoverOffset: 15
+      }]
     },
     options: {
       cutout: '50%', layout: { padding: 10 },
@@ -1508,7 +1341,7 @@ function updatePieChart(dataPoints) {
           color: '#ffffff',
           font: { family: 'Kanit', weight: 'bold', size: 14 },
           anchor: 'center', align: 'center',
-          formatter: function(value) { var n = parseFloat(value); return n > 0 ? n.toFixed(1) : ''; }
+          formatter: v => parseFloat(v) > 0 ? parseFloat(v).toFixed(1) : ''
         }
       },
       responsive: true, maintainAspectRatio: false
@@ -1516,105 +1349,82 @@ function updatePieChart(dataPoints) {
   });
 }
 
-function renderAttendanceGrid(subjectName, attendanceData) {
-  const attCard = $('st-att-card');
-  
-  // สร้างโครงสร้างตารางใหม่สำหรับวิชานี้
+// ── รับ container เป็น parameter เพื่อไม่ต้องล้าง card ทั้งหมด ──
+function renderAttendanceGrid(subjectName, attendanceData, container) {
   const wrapper = document.createElement('div');
   wrapper.className = 'mb-4';
-  wrapper.innerHTML = `
-    <div style="color:var(--accent); font-weight:bold; margin-bottom:10px; border-left:4px solid var(--primary); padding-left:10px;">
-        📚 วิชา: ${subjectName}
-    </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  `;
-  
-  const thead = wrapper.querySelector('thead');
-  const tbody = wrapper.querySelector('tbody');
 
-  // ตรรกะการคำนวณ (ใช้ ลา = 0.25 ตามที่คุณครูต้องการ)
-  var uniqueDates = [...new Set(attendanceData.map(a => a.attendance_date))].sort();
-  var attMap = {};
-  var attendedHours = 0, totalHours = 0;
+  const uniqueDates = [...new Set(attendanceData.map(a => a.attendance_date))].sort();
+  const attMap = {};
+  let attendedHours = 0, totalHours = 0;
 
   attendanceData.forEach(a => {
     attMap[a.attendance_date] = a;
-    var h = parseFloat(a.hours) || 1;
+    const h = parseFloat(a.hours) || 1;
     totalHours += h;
-    if (a.status === 'มา') attendedHours += h;
-    else if (a.status === 'ลา') attendedHours += (h * 0.25);
-    else if (a.status === 'สาย') attendedHours += (h * 0.5);
+    if (a.status === 'มา')       attendedHours += h;
+    else if (a.status === 'ลา')  attendedHours += h * 0.25;
+    else if (a.status === 'สาย') attendedHours += h * 0.5;
   });
-  
-  var pct = totalHours > 0 ? (attendedHours / totalHours) * 100 : 0;
+  const pct = totalHours > 0 ? (attendedHours / totalHours) * 100 : 0;
+  const pctColor = pct >= 80 ? '#22d3ee' : '#ef4444';
 
-  // สร้างหัวตาราง (Dates)
-  var headHtml = '<tr><th class="att-side-label" style="position:sticky;left:0;z-index:30">รายการ \\ วันที่</th>';
+  let headHtml = '<tr><th class="att-side-label" style="position:sticky;left:0;z-index:30">รายการ \\ วันที่</th>';
   uniqueDates.forEach(date => {
-    var d = new Date(date);
-    var h = attMap[date].hours;
-    var disp = d.getDate() + '/' + (d.getMonth()+1) + '/' + (d.getFullYear()+543).toString().slice(-2);
+    const d    = new Date(date);
+    const h    = attMap[date].hours || 1;
+    const disp = d.getDate() + '/' + (d.getMonth()+1) + '/' + (d.getFullYear()+543).toString().slice(-2);
     headHtml += `<th style="text-align:center;min-width:80px"><div style="font-size:13px">${disp}</div><div style="font-size:10px;font-weight:400;opacity:.9">(${h} ชม.)</div></th>`;
   });
   headHtml += '<th class="att-summary-col" style="text-align:center;min-width:80px">มา/รวม</th><th class="att-summary-col" style="text-align:center;min-width:70px">ร้อยละ</th></tr>';
-  thead.innerHTML = headHtml;
 
-  // สร้างแถวข้อมูล (Status)
-  var bodyHtml = '<tr><td class="att-side-label" style="position:sticky;left:0;z-index:10;padding:15px">สถานะ</td>';
+  let bodyHtml = '<tr><td class="att-side-label" style="position:sticky;left:0;z-index:10;padding:15px">สถานะ</td>';
   uniqueDates.forEach(date => {
-    var rec = attMap[date];
-    var symbol = '-', cellBg = 'rgba(255,255,255,0.03)';
+    const rec = attMap[date];
+    let symbol = '-', cellBg = 'rgba(255,255,255,0.03)';
     if (rec) {
-      if (rec.status === 'มา')      { symbol = '✅'; cellBg = 'rgba(16,185,129,0.2)'; }
+      if (rec.status === 'มา')       { symbol = '✅'; cellBg = 'rgba(16,185,129,0.2)'; }
       else if (rec.status === 'ขาด') { symbol = '❌'; cellBg = 'rgba(239,68,68,0.2)'; }
       else if (rec.status === 'ลา')  { symbol = '📝'; cellBg = 'rgba(14,165,233,0.2)'; }
       else if (rec.status === 'สาย') { symbol = '⏰'; cellBg = 'rgba(245,158,11,0.2)'; }
     }
     bodyHtml += `<td style="text-align:center;background:${cellBg};font-size:20px">${symbol}</td>`;
   });
-  
-  var pctColor = pct >= 80 ? '#22d3ee' : '#ef4444';
-  bodyHtml += `<td class="att-summary-col" style="text-align:center">${attendedHours}/${totalHours}</td><td class="att-summary-col" style="text-align:center;color:${pctColor};font-size:18px">${pct.toFixed(0)}%</td></tr>`;
-  tbody.innerHTML = bodyHtml;
+  bodyHtml += `<td class="att-summary-col" style="text-align:center">${attendedHours}/${totalHours}</td>
+               <td class="att-summary-col" style="text-align:center;color:${pctColor};font-size:18px">${pct.toFixed(0)}%</td></tr>`;
 
-  attCard.appendChild(wrapper); // เพิ่มตารางวิชานี้เข้าไปในหน้าจอ
+  wrapper.innerHTML = `
+    <div style="color:var(--accent);font-weight:bold;margin-bottom:10px;border-left:4px solid var(--primary);padding-left:10px;">
+      📚 วิชา: ${subjectName}
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>${headHtml}</thead>
+        <tbody>${bodyHtml}</tbody>
+      </table>
+    </div>`;
+  container.appendChild(wrapper);
 }
-// ─────────────────────────────────────────────────────────
-//  GRADING
-// ─────────────────────────────────────────────────────────
+
+// ─── GRADING ───────────────────────────────────────────────
 async function loadGrading() {
-  stopQrScanner();
-  $('scan-sw').checked = false;
-  $('scan-area').style.display = 'none';
-
-  var aid  = $('g-asgn').value;
-  var room = $('g-room').value;
+  stopQrScanner(); $('scan-sw').checked = false; $('scan-area').style.display = 'none';
+  const aid = $('g-asgn').value, room = $('g-room').value;
   if (!aid || !room) { showToast('กรุณาเลือกห้องและงาน', 'error'); return; }
-
-  var asgn = assignments.find(function(a) { return a.id === aid; });
-  $('grading-title').textContent = '📋 ' + (asgn ? asgn.name : 'รายชื่อนักเรียน') + ' — ห้อง ' + room;
+  const asgn = assignments.find(a => a.id === aid);
+  $('grading-title').textContent = '📋 ' + (asgn?.name || 'รายชื่อนักเรียน') + ' — ห้อง ' + room;
   $('grading-wrap').style.display = 'block';
   $('grading-tbody').innerHTML = '<tr><td colspan="6"><div class="loading"><div class="spinner"></div>กำลังโหลด...</div></td></tr>';
-
   try {
-    var classStudents = students.filter(function(s) { return s.classroom === room; }).sort(function(a,b) { return a.seat_no - b.seat_no; });
-    var gradesRaw = await gasCall('getGradesByAssignment', aid);
-    var gMap = {};
-    (gradesRaw || []).forEach(function(g) { gMap[g.student_id] = g; });
-
-    gradingRows = classStudents.map(function(s) {
-      var g = gMap[s.id] || {};
-      return {
-        student: s, gradeId: g.id || null,
-        status: g.status || 'not_sent',
-        score: (g.score !== undefined && g.score !== null) ? g.score : null,
-        maxScore: g.max_score || (asgn && asgn.max_score) || 10
-      };
+    const classStudents = students.filter(s => s.classroom === room).sort((a,b) => a.seat_no - b.seat_no);
+    const gradesRaw = await gasCall('getGradesByAssignment', aid);
+    const gMap = {};
+    (gradesRaw || []).forEach(g => gMap[g.student_id] = g);
+    gradingRows = classStudents.map(s => {
+      const g = gMap[s.id] || {};
+      return { student: s, gradeId: g.id || null, status: g.status || 'not_sent',
+        score: g.score !== undefined && g.score !== null ? g.score : null,
+        maxScore: g.max_score || asgn?.max_score || 10 };
     });
     renderGradingTable();
   } catch (e) {
@@ -1630,81 +1440,70 @@ function togLabel(s) {
 }
 
 function renderGradingTable() {
-  var tb = $('grading-tbody');
-  tb.innerHTML = '';
-  gradingRows.forEach(function(row, i) {
-    var s   = row.student;
-    var cls = row.status === 'checked' ? 'checked' : row.status === 'waiting' ? 'waiting' : 'not-sent';
-    tb.innerHTML +=
-      '<tr id="gr-' + i + '">' +
-      '<td style="text-align:center">' + (s.seat_no || '—') + '</td>' +
-      '<td style="font-size:.85rem;color:var(--text-dim)">' + s.id + '</td>' +
-      '<td><strong>' + s.first_name + ' ' + s.last_name + '</strong></td>' +
-      '<td style="text-align:center"><button class="tog ' + cls + '" id="tog-' + i + '" onclick="toggleRow(' + i + ')">' + togLabel(row.status) + '</button></td>' +
-      '<td style="text-align:center"><input class="score-in" type="number" id="sc-' + i + '" value="' + (row.score !== null ? row.score : '') + '" min="0" max="' + row.maxScore + '" placeholder="' + row.maxScore + '"></td>' +
-      '<td style="text-align:center;font-weight:700;color:var(--text-dim)">' + row.maxScore + '</td>' +
-      '</tr>';
+  const tb = $('grading-tbody'); tb.innerHTML = '';
+  gradingRows.forEach((row, i) => {
+    const s   = row.student;
+    const cls = row.status === 'checked' ? 'checked' : row.status === 'waiting' ? 'waiting' : 'not-sent';
+    tb.innerHTML += `<tr id="gr-${i}">
+      <td style="text-align:center">${s.seat_no || '—'}</td>
+      <td style="font-size:.85rem;color:var(--text-dim)">${s.id}</td>
+      <td><strong>${s.first_name} ${s.last_name}</strong></td>
+      <td style="text-align:center"><button class="tog ${cls}" id="tog-${i}" onclick="toggleRow(${i})">${togLabel(row.status)}</button></td>
+      <td style="text-align:center"><input class="score-in" type="number" id="sc-${i}" value="${row.score !== null ? row.score : ''}" min="0" max="${row.maxScore}" placeholder="${row.maxScore}"></td>
+      <td style="text-align:center;font-weight:700;color:var(--text-dim)">${row.maxScore}</td>
+    </tr>`;
   });
 }
 
 function toggleRow(i) {
   gradingRows[i].status = gradingRows[i].status === 'checked' ? 'not-sent' : 'checked';
-  var btn = $('tog-' + i);
+  const btn = $('tog-' + i);
   btn.className   = 'tog ' + (gradingRows[i].status === 'checked' ? 'checked' : 'not-sent');
   btn.textContent = togLabel(gradingRows[i].status);
 }
 
 function markAllStatus(s) {
-  gradingRows.forEach(function(_, i) {
+  gradingRows.forEach((_, i) => {
     gradingRows[i].status = s;
-    var btn = $('tog-' + i);
+    const btn = $('tog-' + i);
     if (btn) { btn.className = 'tog ' + (s === 'checked' ? 'checked' : 'not-sent'); btn.textContent = togLabel(s); }
   });
 }
 
 async function saveGradesNow() {
-  var aid = $('g-asgn').value;
+  const aid = $('g-asgn').value;
   if (!aid) { showToast('กรุณาเลือกงานก่อน', 'error'); return; }
-  var rows = gradingRows.map(function(row, i) {
-    var sv    = $('sc-' + i).value;
-    var score = sv !== '' ? parseFloat(sv) : (row.status === 'checked' ? row.maxScore : null);
-    var status = (score !== null) ? 'checked' : row.status;
-    return { student_id: row.student.id, assignment_id: aid, score: score, max_score: row.maxScore, status: status };
+  const rows = gradingRows.map((row, i) => {
+    const sv    = $('sc-' + i).value;
+    const score = sv !== '' ? parseFloat(sv) : (row.status === 'checked' ? row.maxScore : null);
+    return { student_id: row.student.id, assignment_id: aid, score, max_score: row.maxScore, status: score !== null ? 'checked' : row.status };
   });
   try {
     await gasCall('saveGrades', rows);
     showToast('บันทึกคะแนนสำเร็จ! 🎉', 'success');
     await loadGrading();
-  } catch (e) {
-    showToast('บันทึกล้มเหลว: ' + e, 'error');
-  }
+  } catch (e) { showToast('บันทึกล้มเหลว: ' + e, 'error'); }
 }
 
-// ─────────────────────────────────────────────────────────
-//  SCAN MODE (GRADING)
-// ─────────────────────────────────────────────────────────
+// ─── SCAN ──────────────────────────────────────────────────
 function setScanMode(on) {
   $('scan-area').style.display = on ? 'block' : 'none';
-  if (on) { startQrScanner(); $('scan-inp').focus(); } else { stopQrScanner(); }
+  if (on) { startQrScanner(); $('scan-inp').focus(); } else stopQrScanner();
 }
 
 async function startQrScanner() {
   if (scanning) return;
-  var aid = $('g-asgn').value;
+  const aid = $('g-asgn').value;
   if (!aid) { showToast('กรุณาเลือกงานก่อน', 'warn'); $('scan-sw').checked = false; $('scan-area').style.display = 'none'; return; }
   try {
-    html5QrCode = new Html5Qrcode('reader');
-    scanning = true;
-    await html5QrCode.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 220, height: 220 } },
-      async function(decodedText) {
-        var now = Date.now();
-        if (decodedText === lastScannedText && (now - lastScannedAt) < 2500) return;
+    html5QrCode = new Html5Qrcode('reader'); scanning = true;
+    await html5QrCode.start({ facingMode:'environment' }, { fps:10, qrbox:{width:220,height:220} },
+      async decodedText => {
+        const now = Date.now();
+        if (decodedText === lastScannedText && now - lastScannedAt < 2500) return;
         lastScannedText = decodedText; lastScannedAt = now;
         await handleScan(decodedText);
-      },
-      function() {}
+      }, () => {}
     );
     showToast('เปิดกล้องสแกน QR แล้ว', 'success');
   } catch (e) { scanning = false; showToast('เปิดกล้องไม่ได้: ' + e, 'error'); }
@@ -1716,8 +1515,7 @@ async function stopQrScanner() {
 }
 
 function extractStudentId(raw) {
-  raw = (raw || '').trim();
-  if (!raw) return '';
+  raw = (raw || '').trim(); if (!raw) return '';
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     try { return new URL(raw).searchParams.get('student_id') || raw; } catch (e) { return raw; }
   }
@@ -1725,45 +1523,37 @@ function extractStudentId(raw) {
 }
 
 async function handleScan(val) {
-  var studentId = extractStudentId(val);
-  if (!studentId) return;
-  var aid = $('g-asgn').value;
-  if (!aid) { showToast('กรุณาเลือกงานก่อนสแกน', 'error'); return; }
-  var idx = gradingRows.findIndex(function(r) { return r.student.id === studentId; });
+  const studentId = extractStudentId(val); if (!studentId) return;
+  const aid = $('g-asgn').value; if (!aid) { showToast('กรุณาเลือกงานก่อนสแกน', 'error'); return; }
+  const idx = gradingRows.findIndex(r => r.student.id === studentId);
   if (idx === -1) { showToast('ไม่พบรหัส: ' + studentId, 'error'); return; }
   try {
-    var result = await gasCall('markStudentSubmitted', studentId, aid);
-    gradingRows[idx].status = 'checked';
-    gradingRows[idx].score  = result.assignment.max_score;
-    var btn = $('tog-' + idx);
+    const result = await gasCall('markStudentSubmitted', studentId, aid);
+    gradingRows[idx].status = 'checked'; gradingRows[idx].score = result.assignment.max_score;
+    const btn = $('tog-' + idx);
     if (btn) { btn.className = 'tog checked'; btn.textContent = togLabel('checked'); }
-    var sc = $('sc-' + idx);
-    if (sc) sc.value = result.assignment.max_score;
-    var row = $('gr-' + idx);
-    if (row) { row.scrollIntoView({ behavior:'smooth', block:'center' }); row.style.background = 'rgba(16,185,129,.1)'; setTimeout(function() { row.style.background = ''; }, 1200); }
+    const sc = $('sc-' + idx); if (sc) sc.value = result.assignment.max_score;
+    const row = $('gr-' + idx);
+    if (row) { row.scrollIntoView({behavior:'smooth',block:'center'}); row.style.background='rgba(16,185,129,.1)'; setTimeout(()=>row.style.background='',1200); }
     showToast('✅ ' + result.student.first_name + ' ' + result.student.last_name, 'success');
   } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + e, 'error'); }
 }
 
-// ─────────────────────────────────────────────────────────
-//  ATTENDANCE (ADMIN)
-// ─────────────────────────────────────────────────────────
+// ─── ATTENDANCE (ADMIN) ────────────────────────────────────
 async function loadAttendance() {
-  stopAttendanceScanner();
-  $('att-scan-sw').checked = false; $('att-scan-area').style.display = 'none';
-  var room = $('att-room').value;
-  var date = $('att-date').value;
+  stopAttendanceScanner(); $('att-scan-sw').checked = false; $('att-scan-area').style.display = 'none';
+  const room = $('att-room').value, date = $('att-date').value;
   if (!room || !date) { showToast('กรุณาเลือกห้องและวันที่', 'error'); return; }
   $('attendance-title').textContent  = '📋 เช็กชื่อ ห้อง ' + room + ' วันที่ ' + date;
   $('attendance-wrap').style.display = 'block';
   $('attendance-tbody').innerHTML    = '<tr><td colspan="5"><div class="loading"><div class="spinner"></div>กำลังโหลด...</div></td></tr>';
   try {
-    var classStudents = students.filter(function(s) { return s.classroom === room; }).sort(function(a,b) { return a.seat_no - b.seat_no; });
-    var raw  = await gasCall('getAttendanceByDate', room, date);
-    var aMap = {};
-    (raw || []).forEach(function(a) { aMap[a.student_id] = a; });
-    attendanceRows = classStudents.map(function(s) {
-      var a = aMap[s.id] || {};
+    const classStudents = students.filter(s => s.classroom === room).sort((a,b) => a.seat_no - b.seat_no);
+    const raw = await gasCall('getAttendanceByDate', room, date);
+    const aMap = {};
+    (raw || []).forEach(a => aMap[a.student_id] = a);
+    attendanceRows = classStudents.map(s => {
+      const a = aMap[s.id] || {};
       return { student: s, status: a.status || 'ขาด', remark: a.remark || '' };
     });
     renderAttendanceTable();
@@ -1774,94 +1564,82 @@ async function loadAttendance() {
 }
 
 function renderAttendanceTable() {
-  var tb = $('attendance-tbody'); if (!tb) return;
+  const tb = $('attendance-tbody'); if (!tb) return;
   tb.innerHTML = '';
-  attendanceRows.forEach(function(row, i) {
-    var sel = 'att-select select-' + row.status;
-    tb.innerHTML +=
-      '<tr id="att-row-' + i + '" class="row-' + row.status + '">' +
-      '<td style="text-align:center;font-weight:700">' + (row.student.seat_no || '—') + '</td>' +
-      '<td style="color:#cbd5e1;font-size:.85rem">' + row.student.id + '</td>' +
-      '<td><span style="color:#fff;font-size:1.05rem;font-weight:600">' + row.student.first_name + ' ' + row.student.last_name + '</span></td>' +
-      '<td style="text-align:center">' +
-        '<select id="att-status-' + i + '" class="' + sel + '" onchange="updateAttendanceRowVisual(' + i + ',this.value)">' +
-          '<option value="มา" '  + (row.status==='มา'  ? 'selected':'') + '>มา</option>' +
-          '<option value="ขาด" ' + (row.status==='ขาด' ? 'selected':'') + '>ขาด</option>' +
-          '<option value="ลา" '  + (row.status==='ลา'  ? 'selected':'') + '>ลา</option>' +
-          '<option value="สาย" ' + (row.status==='สาย' ? 'selected':'') + '>สาย</option>' +
-        '</select>' +
-      '</td>' +
-      '<td><input type="text" id="att-remark-' + i + '" value="' + (row.remark||'') + '" placeholder="หมายเหตุ" style="background:rgba(255,255,255,0.92);color:#000"></td>' +
-      '</tr>';
+  attendanceRows.forEach((row, i) => {
+    const sel = 'att-select select-' + row.status;
+    tb.innerHTML += `<tr id="att-row-${i}" class="row-${row.status}">
+      <td style="text-align:center;font-weight:700">${row.student.seat_no || '—'}</td>
+      <td style="color:#cbd5e1;font-size:.85rem">${row.student.id}</td>
+      <td><span style="color:#fff;font-size:1.05rem;font-weight:600">${row.student.first_name} ${row.student.last_name}</span></td>
+      <td style="text-align:center">
+        <select id="att-status-${i}" class="${sel}" onchange="updateAttendanceRowVisual(${i},this.value)">
+          <option value="มา"  ${row.status==='มา'  ? 'selected':''}>มา</option>
+          <option value="ขาด" ${row.status==='ขาด' ? 'selected':''}>ขาด</option>
+          <option value="ลา"  ${row.status==='ลา'  ? 'selected':''}>ลา</option>
+          <option value="สาย" ${row.status==='สาย' ? 'selected':''}>สาย</option>
+        </select>
+      </td>
+      <td><input type="text" id="att-remark-${i}" value="${row.remark||''}" placeholder="หมายเหตุ" style="background:rgba(255,255,255,0.92);color:#000"></td>
+    </tr>`;
   });
 }
 
 function updateAttendanceRowVisual(index, value) {
   attendanceRows[index].status = value;
-  var tr  = $('att-row-' + index);
-  var sel = $('att-status-' + index);
+  const tr = $('att-row-' + index), sel = $('att-status-' + index);
   if (tr)  tr.className  = 'row-' + value;
   if (sel) sel.className = 'att-select select-' + value;
 }
 
 function markAllAttendance(status) {
-  attendanceRows.forEach(function(row, i) {
+  attendanceRows.forEach((row, i) => {
     row.status = status;
-    var el = $('att-status-' + i);
-    if (el) el.value = status;
+    const el = $('att-status-' + i); if (el) el.value = status;
     updateAttendanceRowVisual(i, status);
   });
 }
 
 async function saveAttendanceNow() {
-  var date  = $('att-date').value;
-  var subj  = $('att-subj').value;
-  var room  = $('att-room').value;
-  var hours = parseFloat($('att-hours').value) || 1;
+  const date  = $('att-date').value;
+  const subj  = $('att-subj').value;
+  const room  = $('att-room').value;
+  const hours = parseFloat($('att-hours').value) || 1;
   if (!date || !subj || !room) { showToast('กรุณาเลือกวิชา ห้อง และวันที่ให้ครบ', 'error'); return; }
-  var rows = attendanceRows.map(function(row, i) {
-    return {
-      student_id:      row.student.id,
-      attendance_date: date, subject: subj,
-      status:  ($('att-status-' + i) ? $('att-status-' + i).value : row.status),
-      remark:  ($('att-remark-' + i)  ? $('att-remark-' + i).value  : '') || '',
-      hours: hours
-    };
-  });
+  const rows = attendanceRows.map((row, i) => ({
+    student_id:      row.student.id,
+    attendance_date: date, subject: subj,
+    status:  $('att-status-' + i) ? $('att-status-' + i).value : row.status,
+    remark:  $('att-remark-'  + i) ? $('att-remark-'  + i).value : '',
+    hours
+  }));
   try {
     await gasCall('saveAttendance', rows);
     showToast('บันทึกการเข้าเรียนวิชา ' + subj + ' สำเร็จ', 'success');
-  } catch (e) {
-    showToast('บันทึกไม่สำเร็จ: ' + (e.message || e), 'error');
-  }
+  } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + (e.message || e), 'error'); }
 }
 
 function setAttendanceScanMode(on) {
   $('att-scan-area').style.display = on ? 'block' : 'none';
-  if (on) { startAttendanceScanner(); $('att-scan-inp').focus(); } else { stopAttendanceScanner(); }
+  if (on) { startAttendanceScanner(); $('att-scan-inp').focus(); } else stopAttendanceScanner();
 }
 
 async function startAttendanceScanner() {
   if (attendanceScanning) return;
-  var room = $('att-room').value;
-  var date = $('att-date').value;
-  if (!room || !date) { showToast('กรุณาเลือกห้องและวันที่ก่อนสแกน', 'warn'); $('att-scan-sw').checked = false; $('att-scan-area').style.display = 'none'; return; }
+  const room = $('att-room').value, date = $('att-date').value;
+  if (!room || !date) { showToast('กรุณาเลือกห้องและวันที่ก่อนสแกน','warn'); $('att-scan-sw').checked=false; $('att-scan-area').style.display='none'; return; }
   try {
-    attendanceQr = new Html5Qrcode('att-reader');
-    attendanceScanning = true;
-    await attendanceQr.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 220, height: 220 } },
-      async function(decodedText) {
-        var now = Date.now();
-        if (decodedText === lastAttendanceScan && (now - lastAttendanceScanAt) < 2500) return;
+    attendanceQr = new Html5Qrcode('att-reader'); attendanceScanning = true;
+    await attendanceQr.start({ facingMode:'environment' }, { fps:10, qrbox:{width:220,height:220} },
+      async decodedText => {
+        const now = Date.now();
+        if (decodedText === lastAttendanceScan && now - lastAttendanceScanAt < 2500) return;
         lastAttendanceScan = decodedText; lastAttendanceScanAt = now;
         await handleAttendanceScan(decodedText);
-      },
-      function() {}
+      }, () => {}
     );
     showToast('เปิดกล้องเช็กชื่อแล้ว', 'success');
-  } catch (e) { attendanceScanning = false; showToast('เปิดกล้องไม่ได้: ' + e, 'error'); }
+  } catch (e) { attendanceScanning=false; showToast('เปิดกล้องไม่ได้: '+e,'error'); }
 }
 
 async function stopAttendanceScanner() {
@@ -1870,61 +1648,60 @@ async function stopAttendanceScanner() {
 }
 
 async function handleAttendanceScan(val) {
-  var studentId = extractStudentId(val);
-  if (!studentId) return;
-  var date   = $('att-date').value;
-  var status = $('att-default-status').value;
-  var idx    = attendanceRows.findIndex(function(r) { return r.student.id === studentId; });
+  const studentId = extractStudentId(val); if (!studentId) return;
+  const date = $('att-date').value, status = $('att-default-status').value;
+  const idx  = attendanceRows.findIndex(r => r.student.id === studentId);
   if (idx === -1) { showToast('ไม่พบรหัส: ' + studentId, 'error'); return; }
   try {
-    var result = await gasCall('markStudentAttendance', studentId, date, status, '');
+    const result = await gasCall('markStudentAttendance', studentId, date, status, '');
     attendanceRows[idx].status = status;
-    var statusEl = $('att-status-' + idx);
-    if (statusEl) statusEl.value = status;
+    const statusEl = $('att-status-' + idx); if (statusEl) statusEl.value = status;
     updateAttendanceRowVisual(idx, status);
-    var row = $('att-row-' + idx);
-    if (row) row.scrollIntoView({ behavior:'smooth', block:'center' });
+    const row = $('att-row-' + idx); if (row) row.scrollIntoView({behavior:'smooth',block:'center'});
     showToast('📅 ' + result.student.first_name + ' ' + result.student.last_name + ' = ' + status, 'success');
   } catch (e) { showToast('เช็กชื่อไม่สำเร็จ: ' + e, 'error'); }
 }
 
-// ─────────────────────────────────────────────────────────
-//  STUDENTS TAB
-// ─────────────────────────────────────────────────────────
+// ─── STUDENTS TAB ──────────────────────────────────────────
 function renderStudentTable() { filterStudents(); }
 
 function filterStudents() {
-  var room = $('f-room').value;
-  var q    = $('f-q').value.toLowerCase();
-  var list = students.filter(function(s) {
-    return (!room || s.classroom === room) &&
-           (!q || s.id.toLowerCase().includes(q) || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q));
-  });
-  var tb = $('st-tbody-admin');
-  if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="7"><div class="empty" style="padding:24px"><div class="empty-ico" style="font-size:2rem">🔍</div><div class="empty-title">ไม่มีข้อมูล</div></div></td></tr>'; return;
-  }
-  tb.innerHTML = list.map(function(s) {
-    return '<tr>' +
-      '<td style="font-size:.85rem">' + s.id + '</td>' +
-      '<td>' + s.first_name + '</td>' +
-      '<td>' + s.last_name + '</td>' +
-      '<td><span class="badge badge-blue">' + s.classroom + '</span></td>' +
-      '<td style="text-align:center">' + s.seat_no + '</td>' +
-      '<td style="text-align:center"><button class="btn btn-sm btn-outline" onclick="showQR(\'' + s.id + '\',\'' + s.first_name + ' ' + s.last_name + '\',\'' + s.classroom + '\')">📷</button></td>' +
-      '<td style="text-align:center"><button class="btn btn-sm btn-danger" onclick="delStudent(\'' + s.id + '\')">🗑️</button></td>' +
-      '</tr>';
-  }).join('');
+  const room = $('f-room').value, q = $('f-q').value.toLowerCase();
+  const list = students.filter(s =>
+    (!room || s.classroom === room) &&
+    (!q || s.id.toLowerCase().includes(q) || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q))
+  );
+  const tb = $('st-tbody-admin');
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="7"><div class="empty" style="padding:24px"><div class="empty-ico" style="font-size:2rem">🔍</div><div class="empty-title">ไม่มีข้อมูล</div></div></td></tr>'; return; }
+  tb.innerHTML = list.map(s => `<tr>
+    <td style="font-size:.85rem">${s.id}</td>
+    <td>${s.first_name}</td>
+    <td>${s.last_name}</td>
+    <td><span class="badge badge-blue">${s.classroom}</span></td>
+    <td style="text-align:center">${s.seat_no}</td>
+    <td style="text-align:center"><button class="btn btn-sm btn-outline" onclick="showQR('${s.id}','${s.first_name} ${s.last_name}','${s.classroom}')">📷</button></td>
+    <td style="text-align:center"><button class="btn btn-sm btn-danger" onclick="delStudent('${s.id}')">🗑️</button></td>
+  </tr>`).join('');
 }
 
+// ── เดิมมีสองนิยาม — รวมเป็นอันเดียว (รองรับ email) ──
 async function saveStudent() {
-  var d = { id: $('ns-id').value.trim(), first_name: $('ns-fn').value.trim(), last_name: $('ns-ln').value.trim(), classroom: $('ns-cls').value.trim(), seat_no: parseInt($('ns-seat').value) || 0 };
-  if (!d.id || !d.first_name || !d.last_name || !d.classroom) { showToast('กรอกข้อมูลให้ครบ', 'error'); return; }
+  const d = {
+    id:         $('ns-id').value.trim(),
+    first_name: $('ns-fn').value.trim(),
+    last_name:  $('ns-ln').value.trim(),
+    classroom:  $('ns-cls').value.trim(),
+    seat_no:    parseInt($('ns-seat').value) || 0,
+    email:      $('ns-email').value.trim()
+  };
+  if (!d.id || !d.first_name || !d.last_name || !d.classroom) {
+    showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return;
+  }
   try {
     await gasCall('upsertStudent', d);
     closeModal('m-add-st');
-    showToast('เพิ่มนักเรียนสำเร็จ', 'success');
-    students = await gasCall('getStudents');
+    showToast('บันทึกสำเร็จ', 'success');
+    students    = await gasCall('getStudents');
     assignments = await gasCall('getAllAssignments');
     populateDropdowns(); renderStudentTable();
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
@@ -1940,286 +1717,719 @@ async function delStudent(id) {
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
 }
 
-// ─────────────────────────────────────────────────────────
-//  IMPORT
-// ─────────────────────────────────────────────────────────
+// ─── IMPORT ────────────────────────────────────────────────
 async function importFile(input) {
-  var file = input.files[0]; if (!file) return;
-  var reader = new FileReader();
-  reader.onload = async function(e) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
     try {
-      var wb   = XLSX.read(e.target.result, { type:'binary' });
-      var ws   = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws);
-      var list = rows.map(function(r) {
-        return { id: String(r['รหัสนักเรียน']||r['id']||''), first_name: String(r['ชื่อ']||r['first_name']||''), last_name: String(r['สกุล']||r['last_name']||''), classroom: String(r['ชั้น']||r['classroom']||''), seat_no: parseInt(r['เลขที่']||r['seat_no']||0) };
-      }).filter(function(s) { return s.id; });
+      const wb   = XLSX.read(e.target.result, { type:'binary' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      const list = rows.map(r => ({
+        id:         String(r['รหัสนักเรียน']||r['id']||''),
+        first_name: String(r['ชื่อ']||r['first_name']||''),
+        last_name:  String(r['สกุล']||r['last_name']||''),
+        classroom:  String(r['ชั้น']||r['classroom']||''),
+        seat_no:    parseInt(r['เลขที่']||r['seat_no']||0),
+        email:      String(r['อีเมล']||r['email']||'')
+      })).filter(s => s.id);
       await gasCall('upsertStudents', list);
       showToast('นำเข้า ' + list.length + ' คนสำเร็จ', 'success');
-      students = await gasCall('getStudents');
-      assignments = await gasCall('getAllAssignments');
+      students = await gasCall('getStudents'); assignments = await gasCall('getAllAssignments');
       populateDropdowns(); renderStudentTable();
     } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
   };
-  reader.readAsBinaryString(file);
-  input.value = '';
+  reader.readAsBinaryString(file); input.value = '';
 }
 
 function dlTemplate() {
-  var ws = XLSX.utils.aoa_to_sheet([['รหัสนักเรียน','ชื่อ','สกุล','ชั้น','เลขที่'],['12345','สมชาย','ใจดี','ม.5/1','1'],['12346','สมหญิง','รักเรียน','ม.5/1','2']]);
-  var wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['รหัสนักเรียน','ชื่อ','สกุล','ชั้น','เลขที่','อีเมล'],
+    ['12345','สมชาย','ใจดี','ม.5/1','1','somchai@school.ac.th']
+  ]);
+  const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'นักเรียน');
   XLSX.writeFile(wb, 'template_students.xlsx');
 }
 
-// ─────────────────────────────────────────────────────────
-//  QR CODE
-// ─────────────────────────────────────────────────────────
+// ─── QR CODE ───────────────────────────────────────────────
 function showQR(id, name, cls) {
   $('qr-wrap').innerHTML = '';
   new QRCode($('qr-wrap'), { text: id, width: 192, height: 192, colorDark: '#0f172a', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
-  $('qr-info').innerHTML = '<strong style="font-size:1.05rem">' + name + '</strong><br><span class="text-muted">' + cls + ' | รหัส: ' + id + '</span>';
+  $('qr-info').innerHTML = `<strong style="font-size:1.05rem">${name}</strong><br><span class="text-muted">${cls} | รหัส: ${id}</span>`;
   openModal('m-qr');
 }
 
 function printQR() {
-  var qr   = $('qr-wrap').innerHTML;
-  var info = $('qr-info').innerHTML;
-  var w    = window.open('', '_blank');
-  w.document.write('<!DOCTYPE html><html><head><title>QR</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style>body{font-family:\'Sarabun\',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f8fafc}.box{border:2.5px solid #0ea5e9;border-radius:18px;padding:28px 32px;text-align:center;background:#fff;box-shadow:0 4px 24px rgba(14,165,233,.18)}</style></head><body><div class="box">' + qr + '<div style="margin-top:12px">' + info + '</div></div><script>window.onload=()=>window.print()<\/script></body></html>');
+  const qr = $('qr-wrap').innerHTML, info = $('qr-info').innerHTML;
+  const w  = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>QR</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f8fafc}.box{border:2.5px solid #0ea5e9;border-radius:18px;padding:28px 32px;text-align:center;background:#fff;box-shadow:0 4px 24px rgba(14,165,233,.18)}</style></head><body><div class="box">${qr}<div style="margin-top:12px">${info}</div></div><script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
 
 async function printAllQR() {
-  var room = $('f-room').value;
-  if (!room) { showToast('กรุณาเลือกห้องเรียนก่อน', 'warn'); return; }
-  var list = students.filter(function(s) { return s.classroom === room; }).sort(function(a,b) { return a.seat_no - b.seat_no; });
-  if (!list.length) { showToast('ไม่พบข้อมูลนักเรียน', 'error'); return; }
-  showToast('กำลังสร้าง QR...', 'info');
-  var tempArea = document.createElement('div');
-  tempArea.style.display = 'none';
-  document.body.appendChild(tempArea);
-  var htmlContent = '';
-  for (var i = 0; i < list.length; i++) {
-    var s = list[i];
-    var qrDiv = document.createElement('div');
-    tempArea.appendChild(qrDiv);
+  const room = $('f-room').value;
+  if (!room) { showToast('กรุณาเลือกห้องเรียนก่อน','warn'); return; }
+  const list = students.filter(s => s.classroom === room).sort((a,b) => a.seat_no - b.seat_no);
+  if (!list.length) { showToast('ไม่พบข้อมูลนักเรียน','error'); return; }
+  showToast('กำลังสร้าง QR...','info');
+  const tempArea = document.createElement('div'); tempArea.style.display='none'; document.body.appendChild(tempArea);
+  let htmlContent = '';
+  for (const s of list) {
+    const qrDiv = document.createElement('div'); tempArea.appendChild(qrDiv);
     new QRCode(qrDiv, { text: s.id, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
-    await new Promise(function(r) { setTimeout(r, 50); });
-    var img = qrDiv.querySelector('img');
-    var imgSrc = img ? img.src : '';
-    htmlContent += '<div class="qr-card"><img src="' + imgSrc + '" style="width:150px;height:150px;"><div class="st-name">' + s.first_name + ' ' + s.last_name + '</div><div class="st-id">' + s.id + '</div><div class="st-meta">เลขที่ ' + s.seat_no + ' | ' + s.classroom + '</div></div>';
+    await new Promise(r => setTimeout(r, 50));
+    const img = qrDiv.querySelector('img');
+    htmlContent += `<div class="qr-card"><img src="${img?.src||''}" style="width:150px;height:150px;"><div class="st-name">${s.first_name} ${s.last_name}</div><div class="st-id">${s.id}</div><div class="st-meta">เลขที่ ${s.seat_no} | ${s.classroom}</div></div>`;
     qrDiv.remove();
   }
   document.body.removeChild(tempArea);
-  var pw = window.open('', '_blank');
-  pw.document.write('<html><head><title>QR ' + room + '</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Kanit:wght@700&display=swap" rel="stylesheet"><style>@page{size:A4;margin:10mm}body{font-family:\'Sarabun\',sans-serif;margin:0;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:65mm;gap:5mm;padding:2mm}.qr-card{border:1px solid #000;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;text-align:center;break-inside:avoid}.st-name{font-size:1rem;font-weight:bold;margin-top:5px}.st-id{font-family:\'Kanit\';font-size:2.2rem;color:#000;line-height:1;margin:2px 0}.st-meta{font-size:.8rem;color:#333}</style></head><body onload="setTimeout(()=>{window.print();window.close()},500)"><div class="grid">' + htmlContent + '</div></body></html>');
+  const pw = window.open('','_blank');
+  pw.document.write(`<html><head><title>QR ${room}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Kanit:wght@700&display=swap" rel="stylesheet"><style>@page{size:A4;margin:10mm}body{font-family:'Sarabun',sans-serif;margin:0;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:65mm;gap:5mm;padding:2mm}.qr-card{border:1px solid #000;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;text-align:center;break-inside:avoid}.st-name{font-size:1rem;font-weight:bold;margin-top:5px}.st-id{font-family:'Kanit';font-size:2.2rem;color:#000;line-height:1;margin:2px 0}.st-meta{font-size:.8rem;color:#333}</style></head><body onload="setTimeout(()=>{window.print();window.close()},500)"><div class="grid">${htmlContent}</div></body></html>`);
   pw.document.close();
 }
 
-// ─────────────────────────────────────────────────────────
-//  ASSIGNMENTS
-// ─────────────────────────────────────────────────────────
+// ─── BEHAVIOR TAB ──────────────────────────────────────────
+function renderBehaviorList() {
+  const q = ($('bh-search')?.value || '').toLowerCase();
+  const list = students.filter(s =>
+    s.id.toLowerCase().includes(q) || s.first_name.toLowerCase().includes(q) || s.last_name.toLowerCase().includes(q)
+  );
+  const tb = $('bh-tbody'); if (!tb) return;
+  tb.innerHTML = list.length ? list.map(s => {
+    const score = s.behavior_score ?? 10;
+    return `<tr>
+      <td style="font-size:.85rem">${s.id}</td>
+      <td><strong>${s.first_name} ${s.last_name}</strong></td>
+      <td><span class="badge badge-blue">${s.classroom}</span></td>
+      <td style="text-align:center"><span id="bh-val-${s.id}" class="score-big" style="font-size:1.6rem;color:var(--purple)">${score}</span></td>
+      <td style="text-align:center"><div class="flex justify-center gap-2">
+        <button class="btn btn-sm btn-danger" onclick="modifyBehavior('${s.id}',-1)">หัก 1</button>
+        <button class="btn btn-sm btn-success" onclick="modifyBehavior('${s.id}',1)">บวก 1</button>
+      </div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text-dim)">ไม่พบข้อมูล</td></tr>';
+}
+
+async function modifyBehavior(studentId, change) {
+  const scoreEl = $('bh-val-' + studentId);
+  const newScore = parseFloat(scoreEl.innerText) + change;
+  if (newScore < 0)  { showToast('คะแนนจิตพิสัยต่ำสุดคือ 0','warn');  return; }
+  if (newScore > 15) { showToast('คะแนนจิตพิสัยสูงสุดคือ 15','warn'); return; }
+  try {
+    await gasCall('updateBehaviorScore', studentId, newScore);
+    scoreEl.innerText = newScore;
+    const idx = students.findIndex(s => s.id === studentId);
+    if (idx !== -1) students[idx].behavior_score = newScore;
+    showToast('อัปเดตคะแนนพฤติกรรมเรียบร้อย', 'success');
+  } catch (e) { showToast('บันทึกล้มเหลว: ' + e, 'error'); }
+}
+
+// ─── ASSIGNMENTS ───────────────────────────────────────────
 function populateAsgnModal() {
-  var subjs = [...new Set(assignments.map(function(a) { return a.subject; }))].sort();
-  var sel   = $('na-subj-sel');
+  const subjs = [...new Set(assignments.map(a => a.subject))].sort();
+  const sel = $('na-subj-sel');
   sel.innerHTML = '<option value="">— เลือกวิชา —</option>' +
-    subjs.map(function(s) { return '<option value="' + s + '">' + s + '</option>'; }).join('') +
+    subjs.map(s => `<option value="${s}">${s}</option>`).join('') +
     '<option value="__new__">✏️ เพิ่มวิชาใหม่...</option>';
-  var rooms = [...new Set(students.map(function(s) { return s.classroom; }))].sort();
-  var rSel  = $('na-room-sel');
+  const rooms = [...new Set(students.map(s => s.classroom))].sort();
+  const rSel = $('na-room-sel');
   rSel.innerHTML = '<option value="">— เลือกห้อง —</option>' +
-    rooms.map(function(r) { return '<option value="' + r + '">' + r + '</option>'; }).join('') +
+    rooms.map(r => `<option value="${r}">${r}</option>`).join('') +
     '<option value="__new__">✏️ เพิ่มห้องใหม่...</option>';
   $('na-subj').style.display = 'none'; $('na-subj').value = '';
   $('na-room').style.display = 'none'; $('na-room').value = '';
 }
 
 function syncSubjInput(val) {
-  var inp = $('na-subj');
-  if (val === '__new__') { inp.style.display = 'block'; inp.value = ''; inp.focus(); }
-  else { inp.style.display = 'none'; inp.value = val; }
+  const inp = $('na-subj');
+  if (val === '__new__') { inp.style.display='block'; inp.value=''; inp.focus(); }
+  else { inp.style.display='none'; inp.value=val; }
 }
-
 function syncRoomInput(val) {
-  var inp = $('na-room');
-  if (val === '__new__') { inp.style.display = 'block'; inp.value = ''; inp.focus(); }
-  else { inp.style.display = 'none'; inp.value = val; }
+  const inp = $('na-room');
+  if (val === '__new__') { inp.style.display='block'; inp.value=''; inp.focus(); }
+  else { inp.style.display='none'; inp.value=val; }
 }
 
 function renderAsgnTable() {
-  var tb = $('asgn-tbody');
-  if (!assignments.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px">ยังไม่มีงาน</td></tr>'; return;
-  }
-  tb.innerHTML = assignments.map(function(a) {
-    var catClass = { 'ก่อนกลางภาค':'badge-blue', 'กลางภาค':'badge-green', 'หลังกลางภาค':'badge-amber', 'ปลายภาค':'badge-red' }[a.category] || 'badge-blue';
-    return '<tr>' +
-      '<td><strong>' + a.name + '</strong><br><small class="text-muted">' + (a.type || '') + '</small></td>' +
-      '<td>' + a.subject + '</td>' +
-      '<td>' + a.classroom + '</td>' +
-      '<td><span class="badge ' + catClass + '">' + (a.category || 'ก่อนกลางภาค') + '</span></td>' +
-      '<td style="text-align:center"><strong>' + a.max_score + '</strong> <small class="text-muted">(ผ่าน ' + (a.passing_score || 0) + ')</small></td>' +
-      '<td style="text-align:center"><button class="btn btn-sm btn-danger" onclick="delAssignment(\'' + a.id + '\')">🗑️</button></td>' +
-      '</tr>';
+  const tb = $('asgn-tbody');
+  if (!assignments.length) { tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:28px">ยังไม่มีงาน</td></tr>'; return; }
+  tb.innerHTML = assignments.map(a => {
+    const catClass = {'ก่อนกลางภาค':'badge-blue','กลางภาค':'badge-green','หลังกลางภาค':'badge-amber','ปลายภาค':'badge-red'}[a.category] || 'badge-blue';
+    return `<tr>
+      <td><strong>${a.name}</strong>${a.description ? `<br><small style="color:var(--text-dim)">📝 ${a.description}</small>` : ''}</td>
+      <td>${a.subject}</td>
+      <td>${a.classroom}</td>
+      <td><span class="badge ${catClass}">${a.category}</span></td>
+      <td style="text-align:center"><strong>${a.max_score}</strong> <small style="color:var(--text-dim)">(ผ่าน ${a.passing_score})</small></td>
+      <td style="text-align:center">
+        <button class="btn btn-sm btn-outline" onclick='editAssignment(${JSON.stringify(a)})'>✏️</button>
+        <button class="btn btn-sm btn-danger" onclick="delAssignment('${a.id}')">🗑️</button>
+      </td>
+    </tr>`;
   }).join('');
 }
 
 async function saveAssignment() {
-  var subjSel = $('na-subj-sel').value;
-  var subj    = (subjSel === '__new__' || subjSel === '') ? $('na-subj').value.trim() : subjSel;
-  var roomSel = $('na-room-sel').value;
-  var room    = (roomSel === '__new__' || roomSel === '') ? $('na-room').value.trim() : roomSel;
-  var d = { name: $('na-nm').value.trim(), subject: subj, classroom: room, category: $('na-cat').value, max_score: parseFloat($('na-max').value) || 10, passing_score: parseFloat($('na-pass').value) || 0, type: $('na-type').value };
-  if (!d.name || !d.subject || !d.classroom) { showToast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+  const id      = $('na-id').value;
+  const subjSel = $('na-subj-sel').value;
+  const subj    = (subjSel === '__new__' || subjSel === '') ? $('na-subj').value.trim() : subjSel;
+  const roomSel = $('na-room-sel').value;
+  const room    = (roomSel === '__new__' || roomSel === '') ? $('na-room').value.trim() : roomSel;
+  const d = {
+    name: $('na-nm').value.trim(), description: $('na-desc').value.trim(),
+    subject: subj, classroom: room, category: $('na-cat').value,
+    max_score: parseFloat($('na-max').value) || 10,
+    passing_score: parseFloat($('na-pass').value) || 0,
+    type: $('na-type').value
+  };
+  if (id) d.id = id;
+  if (!d.name || !d.subject || !d.classroom) { showToast('กรุณากรอกข้อมูลให้ครบ','error'); return; }
   try {
-    await gasCall('createAssignment', d);
+    const { error } = await _sb.from('assignments').upsert(d, { onConflict: 'id' });
+    if (error) throw error;
     closeModal('m-add-asgn');
-    showToast('สร้างงานหมวด ' + d.category + ' สำเร็จ', 'success');
+    showToast(id ? 'แก้ไขงานสำเร็จ' : 'สร้างงานสำเร็จ', 'success');
+    $('na-id').value = ''; $('asgn-modal-title').textContent = '➕ เพิ่มงาน / การสอบ';
     assignments = await gasCall('getAllAssignments');
     populateDropdowns(); renderAsgnTable();
-  } catch (e) { showToast('เกิดข้อผิดพลาด: ' + e, 'error'); }
+  } catch (e) { showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); }
+}
+
+function editAssignment(a) {
+  populateAsgnModal();
+  $('asgn-modal-title').textContent = '✏️ แก้ไขข้อมูลงาน';
+  $('na-id').value = a.id; $('na-nm').value = a.name; $('na-desc').value = a.description || '';
+  $('na-cat').value = a.category; $('na-type').value = a.type || 'เดี่ยว';
+  $('na-max').value = a.max_score; $('na-pass').value = a.passing_score;
+  $('na-subj-sel').value = a.subject; $('na-subj').value = a.subject;
+  $('na-room-sel').value = a.classroom; $('na-room').value = a.classroom;
+  openModal('m-add-asgn');
 }
 
 async function delAssignment(id) {
   if (!confirm('ลบงานนี้? คะแนนที่เกี่ยวข้องจะถูกลบด้วย')) return;
   try {
     await gasCall('deleteAssignment', id);
-    showToast('ลบงานแล้ว', 'success');
+    showToast('ลบงานแล้ว','success');
     assignments = await gasCall('getAllAssignments');
     populateDropdowns(); renderAsgnTable(); syncAssignSelect();
   } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
 }
 
-// ─────────────────────────────────────────────────────────
-//  EXPORT
-// ─────────────────────────────────────────────────────────
-async function exportExcel() {
-  var room = $('exp-room').value;
-  var subj = $('exp-subj').value;
-  if (!room || !subj) { showToast('เลือกห้องและวิชาก่อน', 'error'); return; }
+// ─── GOOGLE CLASSROOM SYNC ─────────────────────────────────
+// ── Helper: Fetch + จัดการ error อัตโนมัติ ──
+async function gcFetch(url) {
+  const resp = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+  });
+  if (resp.status === 401) {
+    googleAccessToken = null;
+    throw new Error('Token หมดอายุ กรุณากดซิงค์อีกครั้ง');
+  }
+  if (resp.status === 403) {
+    throw new Error('ไม่มีสิทธิ์เข้าถึง กรุณาอนุญาต Permission ใหม่');
+  }
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${errBody.substring(0, 120)}`);
+  }
+  return resp.json();
+}
+
+// ── ตรวจจับหมวดหมู่จากชื่องาน ──
+function detectCategory(title) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('ปลายภาค') || t.includes('final') || t.includes('สอบปลาย')) return 'ปลายภาค';
+  if (t.includes('กลางภาค') || t.includes('midterm') || t.includes('mid') || t.includes('สอบกลาง')) return 'กลางภาค';
+  if (t.includes('หลังกลางภาค') || t.includes('after')) return 'หลังกลางภาค';
+  return 'ก่อนกลางภาค';
+}
+
+// ── Modal เลือกห้อง/วิชา ก่อนซิงค์ ──
+function syncFromClassroom() {
+  // สร้าง modal แบบ dynamic
+  const existing = $('m-gc-sync');
+  if (existing) existing.remove();
+
+  const rooms = [...new Set(students.map(s => s.classroom))].sort();
+  const subjs = [...new Set(assignments.map(a => a.subject))].sort();
+
+  const el = document.createElement('div');
+  el.className = 'modal-overlay open';
+  el.id = 'm-gc-sync';
+  el.innerHTML = `
+    <div class="modal" style="max-width:500px">
+      <div class="modal-hd">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png"
+          style="height:24px;vertical-align:middle;margin-right:8px">
+        ซิงค์จาก Google Classroom
+        <button class="modal-close" onclick="document.getElementById('m-gc-sync').remove()">✕</button>
+      </div>
+
+      <div class="mb-3">
+        <label>ห้องเรียนในระบบ (ที่จะรับข้อมูล) *</label>
+        <select id="gc-room">
+          <option value="">— เลือกห้อง —</option>
+          ${rooms.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="mb-4">
+        <label>วิชา (ที่จะบันทึกงานลงใน) *</label>
+        <select id="gc-subj" onchange="
+          document.getElementById('gc-subj-new').style.display=
+          this.value==='__new__'?'block':'none'">
+          <option value="">— เลือกวิชา —</option>
+          ${subjs.map(s => `<option value="${s}">${s}</option>`).join('')}
+          <option value="__new__">✏️ พิมพ์วิชาใหม่...</option>
+        </select>
+        <input type="text" id="gc-subj-new"
+          placeholder="พิมพ์ชื่อวิชา..."
+          style="margin-top:8px;display:none">
+      </div>
+
+      <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);
+                  border-radius:10px;padding:12px;font-size:0.83rem;margin-bottom:16px">
+        <strong style="color:var(--amber)">⚠️ เงื่อนไขสำคัญ</strong>
+        <ul style="margin:6px 0 0 16px;color:var(--text-dim);line-height:2">
+          <li>ชื่อ Course ใน Google Classroom ต้องมีชื่อห้องอยู่ เช่น <em>"ชีววิทยา ม.5/1"</em></li>
+          <li>อีเมลนักเรียนในระบบต้องตรงกับ Google Account ของนักเรียน</li>
+          <li>คะแนนจะดึงมาเฉพาะงานที่ครู <strong>Return</strong> กลับแล้วเท่านั้น</li>
+        </ul>
+      </div>
+
+      <div id="gc-log" style="display:none;background:#0f172a;border:1px solid var(--border-glass);
+        border-radius:10px;padding:14px;font-family:monospace;font-size:0.78rem;
+        color:#7dd3fc;white-space:pre-wrap;max-height:220px;overflow-y:auto;
+        margin-bottom:16px"></div>
+
+      <div class="flex gap-3">
+        <button class="btn btn-primary flex-1 btn-lg" id="gc-start-btn"
+          onclick="startGcSync()">🚀 เชื่อมต่อ Google &amp; เริ่มซิงค์</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('m-gc-sync').remove()">ยกเลิก</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function gcLog(msg, type) {
+  const el = $('gc-log');
+  if (!el) return;
+  el.style.display = 'block';
+  const colors = { ok:'#4ade80', err:'#f87171', info:'#7dd3fc', warn:'#fbbf24' };
+  const icons  = { ok:'✅', err:'❌', info:'→', warn:'⚠️' };
+  el.innerHTML += `<span style="color:${colors[type]||'#cbd5e1'}">${icons[type]||'•'} ${msg}\n</span>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function startGcSync() {
+  // ── ตรวจสอบ input ──
+  const room = $('gc-room').value;
+  const subjSel = $('gc-subj').value;
+  const subjNew = ($('gc-subj-new').value || '').trim();
+  const subj = subjSel === '__new__' ? subjNew : subjSel;
+
+  if (!room) { showToast('กรุณาเลือกห้องเรียน', 'error'); return; }
+  if (!subj) { showToast('กรุณาเลือกหรือพิมพ์วิชา', 'error'); return; }
+
+  // ล็อกปุ่ม
+  const btn = $('gc-start-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังดำเนินการ...';
+
+  if (!googleAccessToken) {
+    // ขอ Token ก่อน แล้วค่อยซิงค์
+    _requestGcToken(() => _doGcSync(room, subj));
+  } else {
+    await _doGcSync(room, subj);
+  }
+}
+
+function _requestGcToken(callback) {
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: [
+      'https://www.googleapis.com/auth/classroom.courses.readonly',
+      'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
+      'https://www.googleapis.com/auth/classroom.rosters.readonly',
+      'https://www.googleapis.com/auth/classroom.profile.emails',
+      'https://www.googleapis.com/auth/classroom.profile.photos'
+    ].join(' '),
+    callback: resp => {
+      if (resp.error) {
+        showToast('Google Auth ล้มเหลว: ' + resp.error, 'error');
+        return;
+      }
+      googleAccessToken = resp.access_token;
+      gcLog('เชื่อมต่อ Google สำเร็จ (สิทธิ์ครบถ้วน)', 'ok');
+      if (callback) callback();
+    }
+  });
+  tokenClient.requestAccessToken({ prompt: 'consent' }); // บังคับให้หน้าต่างขอสิทธิ์เด้งขึ้นมาใหม่
+}
+
+async function _doGcSync(room, subj) {
+  gcLog(`เริ่มซิงค์ | ห้อง: ${room} | วิชา: ${subj}`, 'info');
+  setSyncProgress(5, '🔍 ค้นหาห้องเรียนใน Google Classroom...');
+
   try {
-    var data  = await gasCall('getGradesByRoom', room, subj);
-    var sts   = data.students; var asgns = data.assignments; var grs = data.grades;
-    var gMap  = {};
-    grs.forEach(function(g) { gMap[g.student_id + '__' + g.assignment_id] = g.score; });
-    var header = ['เลขที่','รหัสนักเรียน','ชื่อ','สกุล'].concat(asgns.map(function(a) { return a.name; })).concat(['รวม']);
-    var maxRow = ['','','','คะแนนเต็ม'].concat(asgns.map(function(a) { return a.max_score; })).concat([asgns.reduce(function(s,a) { return s + Number(a.max_score); }, 0)]);
-    var rows   = sts.map(function(s) {
-      var scores = asgns.map(function(a) { var v = gMap[s.id+'__'+a.id]; return (v!==undefined&&v!==null)?Number(v):''; });
-      var total  = scores.reduce(function(s,v) { return s+(typeof v==='number'?v:0); }, 0);
+    // ══ STEP 1: หา Course ══
+    gcLog('กำลังดึงรายวิชา...', 'info');
+    const coursesData = await gcFetch(
+      'https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE&pageSize=50'
+    );
+
+    if (!coursesData.courses?.length) {
+      gcLog('ไม่พบวิชาในบัญชีนี้', 'err');
+      setSyncProgress(0);
+      showToast('ไม่พบวิชาเรียนในบัญชี Google นี้', 'error');
+      return;
+    }
+
+    const targetCourse = coursesData.courses.find(c =>
+      (c.name || '').includes(room) || (c.section || '').includes(room)
+    );
+
+    if (!targetCourse) {
+      gcLog(`ไม่พบห้อง "${room}" | วิชาที่มี: ${coursesData.courses.map(c => c.name).join(', ')}`, 'err');
+      setSyncProgress(0);
+      showToast(`ไม่พบห้อง "${room}" ใน Classroom`, 'error');
+      return;
+    }
+    gcLog(`พบ Course: "${targetCourse.name}" (ID: ${targetCourse.id})`, 'ok');
+    setSyncProgress(15, '👥 กำลังดึงรายชื่อนักเรียน...');
+
+    // ══ STEP 2: ดึง Roster (userId → email) ══
+    const rosterData = await gcFetch(
+      `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/students?pageSize=200`
+    );
+    const gcEmailMap = {};
+    (rosterData.students || []).forEach(s => {
+      if (s.userId && s.profile?.emailAddress) {
+        gcEmailMap[s.userId] = s.profile.emailAddress.toLowerCase();
+      }
+    });
+    gcLog(`นักเรียนใน Classroom: ${Object.keys(gcEmailMap).length} คน`, 'info');
+
+    // Map email → student ในระบบ
+    const localStudents = students.filter(s => s.classroom === room);
+    const localEmailMap = {};
+    localStudents.forEach(s => {
+      if (s.email) localEmailMap[s.email.toLowerCase()] = s;
+    });
+    gcLog(`นักเรียนในระบบ (${room}): ${localStudents.length} คน | มี email: ${Object.keys(localEmailMap).length} คน`, 'info');
+
+    // ตรวจสอบการ match
+    let matchCount = 0;
+    Object.values(gcEmailMap).forEach(email => { if (localEmailMap[email]) matchCount++; });
+    gcLog(`จับคู่ email ได้: ${matchCount} คน`, matchCount > 0 ? 'ok' : 'warn');
+    if (matchCount === 0) {
+      gcLog('⚠️ ไม่มี email ตรงกันเลย! ตรวจสอบ email ของนักเรียนในระบบ', 'warn');
+    }
+
+    setSyncProgress(25, '📝 กำลังดึงรายการงาน...');
+
+    // ══ STEP 3: ดึงงาน ══
+    const workData = await gcFetch(
+      `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork?pageSize=100&orderBy=updateTime%20desc`
+    );
+
+    if (!workData.courseWork?.length) {
+      gcLog('ไม่พบงานใน Course นี้', 'warn');
+      setSyncProgress(0);
+      showToast('ไม่พบงานใน Classroom', 'warn');
+      return;
+    }
+
+    const works = workData.courseWork;
+    gcLog(`พบงาน: ${works.length} ชิ้น`, 'ok');
+    setSyncProgress(30, `⚙️ กำลังซิงค์ ${works.length} งาน...`);
+
+    let totalGraded = 0;
+
+    // ══ STEP 4: วนงานแต่ละชิ้น ══
+    for (let wi = 0; wi < works.length; wi++) {
+      const work = works[wi];
+      const pct  = 30 + Math.round(((wi + 1) / works.length) * 65);
+      setSyncProgress(pct, `⚙️ งาน ${wi+1}/${works.length}: ${work.title}`);
+      gcLog(`\n📝 งาน: "${work.title}" (maxPoints: ${work.maxPoints})`, 'info');
+
+      // ─ 4a. Upsert assignment ─
+      const asgnPayload = {
+        name:             work.title,
+        description:      work.description || '',
+        subject:          subj,
+        classroom:        room,
+        category:         detectCategory(work.title),
+        max_score:        work.maxPoints || 10,
+        passing_score:    Math.ceil((work.maxPoints || 10) * 0.5),
+        type:             'Google Classroom',
+        gc_coursework_id: work.id
+      };
+
+      // ตรวจสอบว่ามีงานนี้แล้วหรือไม่
+      const { data: existCheck } = await _sb
+        .from('assignments')
+        .select('id')
+        .eq('gc_coursework_id', work.id)
+        .maybeSingle();
+
+      let asgnId;
+      if (existCheck) {
+        // Update ข้อมูลงานเดิม
+        const { data: upd, error: updErr } = await _sb
+          .from('assignments')
+          .update(asgnPayload)
+          .eq('id', existCheck.id)
+          .select('id')
+          .single();
+        if (updErr) { gcLog(`  ❌ Update error: ${updErr.message}`, 'err'); continue; }
+        asgnId = upd.id;
+        gcLog(`  ↻ อัปเดตงานเดิม (ID: ${asgnId})`, 'info');
+      } else {
+        // Insert งานใหม่
+        const { data: ins, error: insErr } = await _sb
+          .from('assignments')
+          .insert(asgnPayload)
+          .select('id')
+          .single();
+        if (insErr) { gcLog(`  ❌ Insert error: ${insErr.message}`, 'err'); continue; }
+        asgnId = ins.id;
+        gcLog(`  ✓ สร้างงานใหม่ (ID: ${asgnId})`, 'ok');
+      }
+
+      // ─ 4b. สร้าง grade rows สำหรับทุกคนในห้อง (not_sent เป็น default) ─
+      if (localStudents.length > 0) {
+        const initRows = localStudents.map(s => ({
+          student_id:    s.id,
+          assignment_id: asgnId,
+          score:         null,
+          max_score:     work.maxPoints || 10,
+          status:        'not_sent'
+        }));
+        // ignoreDuplicates = true เพื่อไม่ทับข้อมูลที่มีอยู่
+        await _sb.from('grades').upsert(initRows, {
+          onConflict: 'student_id,assignment_id',
+          ignoreDuplicates: true
+        });
+        gcLog(`  ✓ Ensure grade rows: ${localStudents.length} คน`, 'info');
+      }
+
+      // ─ 4c. ดึง studentSubmissions ─
+      let subsData;
+      try {
+        subsData = await gcFetch(
+          `https://classroom.googleapis.com/v1/courses/${targetCourse.id}/courseWork/${work.id}/studentSubmissions?pageSize=200`
+        );
+      } catch (subErr) {
+        gcLog(`  ⚠️ ดึง submissions ไม่ได้: ${subErr.message}`, 'warn');
+        continue;
+      }
+
+      const submissions = subsData.studentSubmissions || [];
+      gcLog(`  Submissions: ${submissions.length} รายการ`, 'info');
+
+      // ─ 4d. แปลง submissions → grade updates ─
+      const gradeUpdates = [];
+
+      for (const sub of submissions) {
+        const email = gcEmailMap[sub.userId];
+        if (!email) continue;
+
+        const localSt = localEmailMap[email];
+        if (!localSt) continue;
+
+        // แปลง state
+        let status = 'not_sent';
+        if (sub.state === 'TURNED_IN' || sub.state === 'RECLAIMED_BY_STUDENT') {
+          status = 'waiting';
+        } else if (sub.state === 'RETURNED') {
+          status = 'checked';
+        }
+
+        // ── ดึงคะแนน: ลองทุก field ──
+        let score = null;
+        if (sub.state === 'RETURNED' || sub.state === 'TURNED_IN') {
+          if (sub.assignedGrade !== undefined && sub.assignedGrade !== null) {
+            score = parseFloat(sub.assignedGrade);
+          } else if (sub.draftGrade !== undefined && sub.draftGrade !== null) {
+            score = parseFloat(sub.draftGrade);
+            // ถ้ามีแค่ draftGrade = ครูยังไม่ return → รอตรวจ
+            if (status === 'not_sent') status = 'waiting';
+          }
+        }
+
+        gradeUpdates.push({
+          student_id:    localSt.id,
+          assignment_id: asgnId,
+          score,
+          max_score:     work.maxPoints || 10,
+          status,
+          updated_at:    new Date().toISOString()
+        });
+      }
+
+      // ─ 4e. Upsert คะแนนที่ได้จาก Classroom ─
+      if (gradeUpdates.length > 0) {
+        const { error: grErr } = await _sb
+          .from('grades')
+          .upsert(gradeUpdates, { onConflict: 'student_id,assignment_id' });
+
+        if (grErr) {
+          gcLog(`  ❌ บันทึกคะแนน error: ${grErr.message}`, 'err');
+        } else {
+          const gradedNow = gradeUpdates.filter(g => g.score !== null).length;
+          gcLog(`  ✓ อัปเดต ${gradeUpdates.length} คน | มีคะแนน: ${gradedNow} คน`, 'ok');
+          totalGraded += gradedNow;
+        }
+      } else {
+        gcLog('  ℹ️ ไม่มี submission ที่ตรงกับนักเรียนในระบบ', 'warn');
+      }
+
+      // หน่วงเล็กน้อยป้องกัน rate limit
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    // ══ เสร็จสิ้น ══
+    setSyncProgress(0);
+    gcLog(`\n════ ซิงค์เสร็จ! ${works.length} งาน | มีคะแนน: ${totalGraded} รายการ ════`, 'ok');
+    showToast(`✅ ซิงค์สำเร็จ! ${works.length} งาน | คะแนน ${totalGraded} รายการ`, 'success');
+
+    // รีโหลดข้อมูล
+    assignments = await gasCall('getAllAssignments');
+    populateDropdowns();
+    renderAsgnTable();
+    syncAssignSelect();
+
+    // ปลดล็อกปุ่ม
+    const btn = $('gc-start-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '✅ ซิงค์เสร็จแล้ว'; }
+
+  } catch (e) {
+    setSyncProgress(0);
+    gcLog(`\nFATAL: ${e.message}`, 'err');
+    showToast('❌ Sync Error: ' + e.message, 'error');
+    console.error('[GC Sync]', e);
+
+    if (e.message.includes('Token') || e.message.includes('401')) {
+      googleAccessToken = null;
+      gcLog('Token หมดอายุ — กดซิงค์อีกครั้ง', 'warn');
+    }
+    const btn = $('gc-start-btn');
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 ลองอีกครั้ง'; }
+  }
+}
+
+// ─── EXPORT ────────────────────────────────────────────────
+async function exportExcel() {
+  const room = $('exp-room').value, subj = $('exp-subj').value;
+  if (!room || !subj) { showToast('เลือกห้องและวิชาก่อน','error'); return; }
+  try {
+    const data  = await gasCall('getGradesByRoom', room, subj);
+    const sts   = data.students, asgns = data.assignments, grs = data.grades;
+    const gMap  = {};
+    grs.forEach(g => gMap[g.student_id + '__' + g.assignment_id] = g.score);
+    const header = ['เลขที่','รหัสนักเรียน','ชื่อ','สกุล'].concat(asgns.map(a => a.name)).concat(['รวม']);
+    const maxRow = ['','','','คะแนนเต็ม'].concat(asgns.map(a => a.max_score)).concat([asgns.reduce((s,a) => s+Number(a.max_score),0)]);
+    const rows   = sts.map(s => {
+      const scores = asgns.map(a => { const v=gMap[s.id+'__'+a.id]; return v!==undefined&&v!==null?Number(v):''; });
+      const total  = scores.reduce((s,v) => s+(typeof v==='number'?v:0), 0);
       return [s.seat_no,s.id,s.first_name,s.last_name].concat(scores).concat([total]);
     });
-    var ws = XLSX.utils.aoa_to_sheet([header,maxRow].concat(rows));
-    ws['!cols'] = header.map(function() { return { wch:16 }; });
-    var wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([header,maxRow].concat(rows));
+    ws['!cols'] = header.map(() => ({ wch:16 }));
+    const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, room.replace(/[:\\/?*\[\]]/g,'_').substring(0,31));
-    XLSX.writeFile(wb, ('คะแนน_' + room + '_' + subj).replace(/[:\\/?*\[\]]/g,'_') + '.xlsx');
-    showToast('ดาวน์โหลดสำเร็จ', 'success');
-  } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
+    XLSX.writeFile(wb, ('คะแนน_'+room+'_'+subj).replace(/[:\\/?*\[\]]/g,'_')+'.xlsx');
+    showToast('ดาวน์โหลดสำเร็จ','success');
+  } catch (e) { showToast('ผิดพลาด: '+e,'error'); }
 }
 
 async function exportAttendanceReport() {
-  var room = $('exp-att-room').value;
-  var subj = $('exp-att-subj').value;
-  if (!room || !subj) { showToast('กรุณาเลือกห้องและวิชา', 'error'); return; }
+  const room = $('exp-att-room').value, subj = $('exp-att-subj').value;
+  if (!room || !subj) { showToast('กรุณาเลือกห้องและวิชา','error'); return; }
   try {
-    showToast('🚀 กำลังสร้างรายงาน...', 'info');
-    var classStudents = students.filter(function(s) { return s.classroom === room; }).sort(function(a,b) { return a.seat_no-b.seat_no; });
-    var allAtt        = await gasCall('getAttendanceForRoom', room);
-    var filteredAtt   = (allAtt || []).filter(function(a) { return a.subject === subj; });
-    if (!filteredAtt.length) { showToast('ไม่พบข้อมูลการเช็กชื่อวิชา ' + subj, 'warn'); return; }
-    var attMap = {}, dateHoursMap = {};
-    filteredAtt.forEach(function(a) {
-      attMap[a.student_id+'_'+a.attendance_date] = a;
-      var h = parseFloat(a.hours)||1;
+    showToast('🚀 กำลังสร้างรายงาน...','info');
+    const classStudents = students.filter(s => s.classroom === room).sort((a,b) => a.seat_no-b.seat_no);
+    const allAtt        = await gasCall('getAttendanceForRoom', room);
+    const filteredAtt   = (allAtt||[]).filter(a => a.subject === subj);
+    if (!filteredAtt.length) { showToast('ไม่พบข้อมูลการเช็กชื่อวิชา '+subj,'warn'); return; }
+    const attMap={}, dateHoursMap={};
+    filteredAtt.forEach(a => {
+      attMap[a.student_id+'_'+a.attendance_date]=a;
+      const h=parseFloat(a.hours)||1;
       if (!dateHoursMap[a.attendance_date]||h>dateHoursMap[a.attendance_date]) dateHoursMap[a.attendance_date]=h;
     });
-    var dates  = Object.keys(dateHoursMap).sort();
-    var header = ['เลขที่','รหัสนักเรียน','ชื่อ-นามสกุล'];
-    var dateCfg = [];
-    dates.forEach(function(d) { 
-      var h = dateHoursMap[d]; 
-      dateCfg.push({date:d,hours:h}); 
-      var dObj = new Date(d);
-      var dateShow = dObj.getDate() + '/' + (dObj.getMonth()+1); // ทำให้หัวตาราง Excel อ่านง่าย
-      for(var i=1;i<=h;i++) header.push(dateShow + ' (ชม.'+i+')'); 
+    const dates=Object.keys(dateHoursMap).sort();
+    const header=['เลขที่','รหัสนักเรียน','ชื่อ-นามสกุล'];
+    const dateCfg=[];
+    dates.forEach(d => {
+      const h=dateHoursMap[d]; dateCfg.push({date:d,hours:h});
+      const dObj=new Date(d);
+      const dateShow=dObj.getDate()+'/'+(dObj.getMonth()+1);
+      for(let i=1;i<=h;i++) header.push(dateShow+' (ชม.'+i+')');
     });
     header.push('ชม.รวม','มาเรียน(ชม.)','ร้อยละ','ผลลัพธ์');
-  var rows = classStudents.map(function(s) {
-      var rowData = [s.seat_no,s.id,s.first_name+' '+s.last_name];
-      var totalH=0,attendedH=0;
-      dateCfg.forEach(function(cfg) {
-        var rec=attMap[s.id+'_'+cfg.date]; var status=rec?rec.status:'ขาด'; var h=cfg.hours;
-        totalH+=h; var weight=0,symbol='ข';
-        if(status==='มา'){symbol='/';weight=1;} 
-        else if(status==='ลา'){symbol='ล';weight=0.25;} // ลา = 0.25 เพื่อให้เวลาเรียนลดลง
+    const rows=classStudents.map(s => {
+      const rowData=[s.seat_no,s.id,s.first_name+' '+s.last_name];
+      let totalH=0,attendedH=0;
+      dateCfg.forEach(cfg => {
+        const rec=attMap[s.id+'_'+cfg.date]; const status=rec?rec.status:'ขาด'; const h=cfg.hours;
+        totalH+=h; let weight=0,symbol='ข';
+        if(status==='มา'){symbol='/';weight=1;}
+        else if(status==='ลา'){symbol='ล';weight=0.25;}
         else if(status==='สาย'){symbol='ส';weight=0.5;}
         attendedH+=(h*weight);
-        for(var i=1;i<=h;i++) rowData.push(symbol);
+        for(let i=1;i<=h;i++) rowData.push(symbol);
       });
-      var pct=totalH>0?(attendedH/totalH)*100:0;
+      const pct=totalH>0?(attendedH/totalH)*100:0;
       rowData.push(totalH,attendedH,pct.toFixed(2)+'%',pct>=80?'ผ่าน':'มส.');
       return rowData;
     });
-    var ws=XLSX.utils.aoa_to_sheet([header].concat(rows));
-    var wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet([header].concat(rows));
+    const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,room.replace(/[:\\/?*\[\]]/g,'_').substring(0,31));
     XLSX.writeFile(wb,'รายงานเช็กชื่อ_'+room+'_'+subj+'.xlsx');
-    showToast('สำเร็จ!', 'success');
-  } catch (e) { showToast('เกิดข้อผิดพลาด: '+(e.message||e), 'error'); }
+    showToast('สำเร็จ!','success');
+  } catch(e){ showToast('เกิดข้อผิดพลาด: '+(e.message||e),'error'); }
 }
 
-// ─────────────────────────────────────────────────────────
-//  INIT
-// ─────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async function() {
-  // 1. เช็ก Session ว่ามีการล็อกอินค้างไว้หรือไม่
+// ─── DNA ANIMATION ─────────────────────────────────────────
+function createDNA() {
+  const container = $('dna-helix'); if (!container) return;
+  for (let i = 0; i < 30; i++) {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;justify-content:center;align-items:center;height:3.3vh;';
+    const dot1 = document.createElement('div'); dot1.className = 'dna-dot';
+    dot1.style.animationDelay = (i * -0.15) + 's';
+    const dot2 = document.createElement('div'); dot2.className = 'dna-dot strand-2';
+    dot2.style.animationDelay = (i * -0.15 - 2) + 's';
+    wrapper.appendChild(dot1); wrapper.appendChild(dot2);
+    container.appendChild(wrapper);
+  }
+}
+createDNA();
+
+// ─── INIT ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await _sb.auth.getSession();
   if (session) {
-    isAdmin = true;
-    currentUser = session.user;
-    if ($('cfg-dot')) $('cfg-dot').className = 'cfg-dot ok';
-    if ($('nav-logout')) $('nav-logout').style.display = 'flex';
+    isAdmin = true; currentUser = session.user;
+    $('cfg-dot').className = 'cfg-dot ok';
+    $('nav-logout').style.display = 'flex';
+    await initAdmin();
   }
-
-  // 2. ตั้งค่าหน้าเริ่มต้นให้เป็นหน้าสถานะ (ตรวจคะแนน) เท่านั้น
+  // ตั้ง default หน้า status
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  
   $('page-status').classList.add('active');
   $('nav-status').classList.add('active');
-  
-  // 3. เพิ่ม Event ตรวจสอบรหัสนักเรียนด้วยปุ่ม Enter
-  if ($('st-id-inp')) {
-    $('st-id-inp').addEventListener('keydown', function(e) { 
-      if (e.key === 'Enter') searchStatus(); 
-    });
-  }
+
+  $('st-id-inp')?.addEventListener('keydown', e => { if (e.key === 'Enter') searchStatus(); });
 });
-
-// แก้ไขฟังก์ชัน showPage เพิ่มเติมเพื่อความปลอดภัย
-function showPage(name) {
-  stopQrScanner();
-  stopAttendanceScanner();
-  
-  // ถ้าจะไปหน้า Admin แต่ยังไม่ได้ล็อกอิน ให้เด้ง Modal ล็อกอินขึ้นมา
-  if (name === 'admin' && !isAdmin) {
-    openModal('m-login');
-    return; // หยุดทำงาน ไม่เปลี่ยนหน้าจนกว่าจะล็อกอินสำเร็จ
-  }
-
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  
-  $('page-' + name).classList.add('active');
-  $('nav-' + name).classList.add('active');
-  
-  if (name === 'admin' && isAdmin) {
-    initAdmin();
-  }
-}
 </script>
-
 </body>
 </html>
