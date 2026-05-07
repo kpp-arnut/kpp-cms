@@ -1,151 +1,134 @@
 :root {
-    /* โทนสีใหม่: Deep Navy + Tech Cyan + Soft Gold */
-    --deep-navy:    #03081a;
-    --navy-bright:  #003399;
-    --tech-cyan:    #22d3ee;
-    --soft-gold:    #ffcc00;
-    --energetic-orange: #f59e0b;
-    --pure-white:   #ffffff;
+    /* ชุดสีสไตล์ "Deep Ocean & Sunset" (นุ่มนวลและหรูหรา) */
+    --matisse:         #355C7D; /* สีน้ำเงินมหาสมุทรเข้ม (น่าเชื่อถือ) */
+    --princely-violet:  #6C5B7B; /* สีม่วงนุ่มนวล (หรูหรา) */
+    --briar-rose:       #C06C84; /* สีชมพู Briar Rose (อบอุ่น) */
+    --momo-peach:       #F67280; /* สีพีชโมโม (สดใส) */
+    --no-way-rose:      #F8B195; /* สีชมพูอ่อน Rosé (โปร่งแสง) */
+    --pure-white:       #FFFFFF;
     
-    /* ระบบสี */
-    --primary:      var(--tech-cyan);
-    --accent:       var(--soft-gold);
-    --bg-dark:      var(--deep-navy);
-    --bg-glass:     rgba(255, 255, 255, 0.98); /* ขาวเกือบสนิทเพื่อความสะอาดตา */
-    --border-glass: rgba(255, 255, 255, 0.1);
-    --radius-lg:    18px;
-    --text-main:    #1e293b;
-    --text-dim:     #64748b;
+    /* Mapping เข้ากับระบบ Dashboard */
+    --primary:          var(--matisse);
+    --primary-alt:      var(--princely-violet);
+    --accent:           var(--no-way-rose);
+    --green:            #10b981;
+    --red:              var(--momo-peach);
+    --bg-dark:          #0b1626; /* กรมท่าเข้มเกือบดำเพื่อให้ Glow เด่น */
+    --bg-glass:         rgba(255, 255, 255, 0.96); /* ขาวกระจกเกือบสนิทเพื่อความเคลียร์ */
+    --border-glass:     rgba(0, 35, 102, 0.1);
+    --radius-lg:        18px;
+    --text-main:        var(--matisse); /* ตัวหนังสือหลักสีกรม */
+    --text-dim:         var(--princely-violet); /* ตัวหนังสือรองสีม่วงนุ่มนวล */
 }
 
 body {
     font-family: 'Sarabun', sans-serif;
     background-color: var(--bg-dark);
+    color: #f1f5f9;
+    min-height: 100vh;
     margin: 0;
-    color: var(--pure-white);
-    overflow-x: hidden;
 }
 
 /* ════════════════════════════════
    DNA BACKDROP — ใหญ่ หนา สมูท
    ════════════════════════════════ */
 .bg-scene {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: radial-gradient(circle at 20% 30%, var(--navy-bright) 0%, var(--deep-navy) 100%);
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(circle at 20% 30%, #1a3050 0%, var(--bg-dark) 100%);
     overflow: hidden;
 }
 
 .dna-container {
-    position: absolute;
-    top: 0;
-    left: 4%;
-    width: 160px;
+    position: absolute; top: 0; left: 80px;
+    width: 140px; /* ความกว้างจุด */
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    opacity: 0.5;
+    display: flex; flex-direction: column;
+    justify-content: space-around; opacity: 0.5;
 }
 
 .dna-dot {
-    width: 22px; /* ใหญ่ขึ้น */
-    height: 22px;
-    background: var(--soft-gold);
-    border-radius: 50%;
-    box-shadow: 0 0 25px var(--soft-gold);
+    width: 20px; height: 20px; /* ใหญ่และหนา */
+    background: var(--accent); border-radius: 50%;
+    box-shadow: 0 0 25px var(--accent);
     animation: rotate3d-heavy 4s ease-in-out infinite;
     position: relative;
 }
 
+/* เส้นเชื่อมระหว่างจุด (หนา) */
 .dna-dot::after {
-    content: "";
-    position: absolute;
-    width: 120px; /* กว้างขึ้น */
-    height: 7px;  /* หนาขึ้น */
-    background: linear-gradient(90deg, var(--soft-gold), var(--tech-cyan));
-    top: 50%;
-    left: 50%;
-    transform: translateY(-50%);
-    z-index: -1;
-    border-radius: 10px;
+    content: ""; position: absolute;
+    width: 120px; height: 7px; /* หนาขึ้นมาก */
+    background: linear-gradient(90deg, var(--accent), var(--briar-rose));
+    top: 50%; left: 50%; transform: translateY(-50%);
+    z-index: -1; border-radius: 10px;
     opacity: 0.8;
 }
 
 .dna-dot.strand-2 {
-    background: var(--tech-cyan);
-    box-shadow: 0 0 25px var(--tech-cyan);
+    background: var(--briar-rose);
+    box-shadow: 0 0 25px var(--briar-rose);
     animation-delay: -2s;
 }
 
 @keyframes rotate3d-heavy {
-    0%, 100% { transform: translateX(-65px) scale(1.3); opacity: 1; z-index: 2; }
-    50% { transform: translateX(65px) scale(0.7); opacity: 0.3; z-index: -1; }
+    0%, 100% { transform: translateX(-65px) scale(1.3); z-index: 2; opacity: 1; }
+    50% { transform: translateX(65px) scale(0.7); z-index: -1; opacity: 0.3; }
 }
 
 /* ════════════════════════════════
-   APP & HEADER — เน้นขาวสะอาด ตัด Navy
+   APP & HEADER — เหมือนเดิมทุกอย่าง แก้ไขแค่สี
    ════════════════════════════════ */
 .app { position: relative; z-index: 10; }
 
 header {
     background: var(--bg-glass);
     padding: 0 20px;
-    height: 70px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 4px 30px rgba(0,0,0,0.4);
-    border-bottom: 5px solid var(--tech-cyan); /* ขอบล่างสี Cyan ให้ดูสดใส */
-    display: flex;
-    align-items: center;
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(20px);
+    border-bottom: 5px solid var(--accent); /* ขอบล่างสี peachy */
+    display: flex; align-items: center;
 }
 
 .header-inner {
-    max-width: 1200px;
-    width: 100%;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    max-width: 1200px; width: 100%; margin: 0 auto; height: 70px;
+    display: flex; align-items: center; justify-content: space-between;
 }
 
 .logo span {
-    color: var(--deep-navy);
-    font-size: 1.3rem;
-    font-weight: 800;
-    font-family: 'Kanit';
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    color: var(--primary);
+    font-size: 1.35rem; font-weight: 800;
+    letter-spacing: -0.01em;
 }
 
 /* ════════════════════════════════
-   NAVIGATION — ปุ่มกดแบบโมเดิร์น
+   NAVIGATION & BUTTONS — ปรับสี
    ════════════════════════════════ */
-nav { display: flex; gap: 12px; }
+nav { display: flex; gap: 10px; }
 
 .nav-btn {
     background: #f1f5f9;
     color: var(--text-dim);
     border: none;
-    padding: 10px 20px;
-    border-radius: 12px;
+    padding: 10px 18px; border-radius: 12px; cursor: pointer; transition: all 0.25s;
     font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
 }
 
-.nav-btn:hover { background: #e2e8f0; color: var(--deep-navy); }
+.nav-btn:hover { background: #e2e8f0; color: var(--primary); }
 
 .nav-btn.active {
-    background: var(--deep-navy) !important;
-    color: var(--tech-cyan) !important;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    background: var(--primary) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(53, 92, 125, 0.4);
+}
+
+#nav-logout {
+    background: rgba(246, 114, 128, 0.1);
+    color: var(--red);
+    border: 1px solid rgba(246, 114, 128, 0.2);
 }
 
 /* ════════════════════════════════
-   CARDS — เน้นความเคลียร์ อ่านง่าย
+   MAIN CONTENT & CARDS — สไตล์กระจกสะอาด
    ════════════════════════════════ */
 main { max-width: 1200px; margin: 35px auto; padding: 0 20px; }
 
@@ -160,49 +143,36 @@ main { max-width: 1200px; margin: 35px auto; padding: 0 20px; }
 }
 
 .card-title {
-    color: var(--deep-navy);
+    color: var(--primary);
     font-family: 'Kanit';
-    font-size: 1.5rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 25px;
+    font-size: 1.3rem; font-weight: 700;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px;
 }
 
 .card-title::before {
     content: "";
-    width: 8px;
-    height: 24px;
-    background: var(--tech-cyan);
+    width: 6px; height: 22px;
+    background: var(--accent);
     border-radius: 4px;
 }
 
 /* ════════════════════════════════
-   HERO — จุดรวมสายตา
+   HERO SECTION — จุดรวมสายตา
    ════════════════════════════════ */
 .hero {
-    background: linear-gradient(135deg, var(--navy-bright) 0%, var(--deep-navy) 100%);
+    background: linear-gradient(135deg, var(--princely-violet) 0%, var(--matisse) 100%);
     border-radius: 25px;
-    padding: 50px 20px;
+    padding: 45px 20px;
     text-align: center;
     color: #fff;
     margin-bottom: 40px;
-    border: 1px solid var(--tech-cyan);
-    box-shadow: 0 10px 40px rgba(34, 211, 238, 0.2);
 }
 
-.hero h1 { 
-    font-size: 2.2rem; 
-    font-weight: 700; 
-    margin-bottom: 15px;
-    background: linear-gradient(to right, #fff, var(--tech-cyan));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
+.hero h1 { font-size: 2.1rem; font-weight: 700; margin-bottom: 12px; color: #fff; }
 
 /* ════════════════════════════════
-   TABLES & INPUTS
+   TABLES & INPUTS — สะอาดตาแต่ล้ำ
    ════════════════════════════════ */
 .tbl-wrap {
     background: #fff;
@@ -211,42 +181,34 @@ main { max-width: 1200px; margin: 35px auto; padding: 0 20px; }
     border: 1px solid #e2e8f0;
 }
 
-thead tr { background: var(--deep-navy) !important; }
-th { color: var(--tech-cyan) !important; padding: 18px !important; font-weight: 600; }
-td { padding: 15px !important; border-bottom: 1px solid #f1f5f9; color: var(--text-main); }
+thead tr { background: var(--primary) !important; }
+th { color: var(--pure-white) !important; padding: 18px !important; }
+td { padding: 15px !important; border-bottom: 1px solid #f1f5f9; }
 
-input[type="text"], input[type="number"], select {
+input[type="text"], select {
     background: #f8fafc !important;
     border: 2px solid #e2e8f0 !important;
     border-radius: 12px !important;
     padding: 12px 18px !important;
     color: var(--text-main) !important;
-    font-family: 'Sarabun';
 }
 
-input:focus { border-color: var(--tech-cyan) !important; outline: none; background: #fff !important; }
+input:focus { border-color: var(--accent) !important; }
 
 .btn-primary {
-    background: var(--tech-cyan) !important;
-    color: var(--deep-navy) !important;
+    background: var(--matisse) !important;
+    color: white !important;
     border: none;
     padding: 12px 30px;
     border-radius: 12px;
     font-weight: 700;
-    transition: 0.3s;
 }
 
-.btn-primary:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(34, 211, 238, 0.4); }
-
-/* สีกราฟและ Badge */
-.badge-green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-.badge-blue  { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
-
-/* Responsive */
+/* ════════════════════════════════
+    Responsive — เพื่อ DNA ใหญ่
+   ════════════════════════════════ */
 @media (max-width: 768px) {
     header { height: auto; padding: 15px; }
     .header-inner { flex-direction: column; gap: 15px; }
-    .dna-container { width: 100px; left: 2%; }
-    .dna-dot { width: 16px; height: 16px; }
-    .dna-dot::after { width: 80px; }
+    .dna-container { width: 120px; left: 2%; }
 }
