@@ -1,144 +1,217 @@
 :root {
+    /* ชุดสี Deep Navy - Gold - Orange */
     --deep-navy:    #002366;
     --vibrant-yellow: #FFD700;
     --energetic-orange: #F39C12;
     --sky-blue:     #87CEEB;
     --pure-white:    #FFFFFF;
     
-    --primary:      var(--sky-blue);
-    --accent:       var(--vibrant-yellow);
-    --green:        #10b981;
-    --red:          #ef4444;
     --bg-dark:      var(--deep-navy);
-    --bg-glass:     rgba(255, 255, 255, 0.95); /* ใช้ขาวกระจกเพื่อให้สี Navy ด้านหลังดูแพง */
-    --border-glass: rgba(0, 35, 102, 0.1);
-    --radius-lg:    20px;
+    --bg-glass:     rgba(255, 255, 255, 0.95);
+    --border-glass: rgba(255, 255, 255, 0.2);
+    --radius-lg:    16px;
 }
 
 body {
     font-family: 'Sarabun', sans-serif;
     background-color: var(--bg-dark);
-    color: var(--deep-navy);
-    min-height: 100vh;
     margin: 0;
+    color: var(--pure-white);
+    overflow-x: hidden;
 }
 
-/* --- DNA ฉากหลัง: ปรับให้ใหญ่และหนาขึ้น --- */
+/* --- 1. จัดการฉากหลัง DNA (ให้ไปอยู่หลังสุดจริงๆ) --- */
 .bg-scene {
-    position: fixed; inset: 0; z-index: 0;
+    position: fixed;
+    inset: 0;
+    z-index: -1; /* สำคัญ: ต้องเป็นค่าลบ */
     background: radial-gradient(circle at center, #003399 0%, var(--deep-navy) 100%);
     overflow: hidden;
 }
 
 .dna-container {
-    position: absolute; top: 0; left: 100px;
-    width: 120px; /* ขยายความกว้าง */
+    position: absolute;
+    top: 0;
+    left: 5%;
+    width: 150px;
     height: 100%;
-    display: flex; flex-direction: column;
-    justify-content: space-around; opacity: 0.6;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    opacity: 0.4;
 }
 
 .dna-dot {
-    width: 20px; height: 20px; /* จุดใหญ่ขึ้นมาก */
-    background: var(--vibrant-yellow); border-radius: 50%;
-    box-shadow: 0 0 20px var(--vibrant-yellow), 0 0 40px rgba(255, 215, 0, 0.5);
+    width: 18px; 
+    height: 18px;
+    background: var(--vibrant-yellow);
+    border-radius: 50%;
+    box-shadow: 0 0 20px var(--vibrant-yellow);
     animation: rotate3d-heavy 4s ease-in-out infinite;
     position: relative;
 }
 
-/* เส้นเชื่อม DNA ให้หนาขึ้น */
 .dna-dot::after {
-    content: ""; position: absolute;
-    width: 100px; height: 6px; /* เส้นหนาขึ้น */
+    content: "";
+    position: absolute;
+    width: 110px;
+    height: 6px;
     background: linear-gradient(90deg, var(--vibrant-yellow), var(--energetic-orange));
-    top: 50%; left: 50%; transform: translateY(-50%);
-    z-index: -1; opacity: 0.8;
+    top: 50%;
+    left: 50%;
+    transform: translateY(-50%);
+    z-index: -1;
     border-radius: 10px;
 }
 
 .dna-dot.strand-2 {
     background: var(--sky-blue);
-    box-shadow: 0 0 20px var(--sky-blue), 0 0 40px rgba(135, 206, 235, 0.5);
+    box-shadow: 0 0 20px var(--sky-blue);
     animation-delay: -2s;
 }
 
 @keyframes rotate3d-heavy {
-    0%, 100% { transform: translateX(-60px) scale(1.3); z-index: 2; opacity: 1; }
-    50% { transform: translateX(60px) scale(0.8); z-index: -1; opacity: 0.4; }
+    0%, 100% { transform: translateX(-60px) scale(1.3); opacity: 1; z-index: 2; }
+    50% { transform: translateX(60px) scale(0.7); opacity: 0.3; z-index: -1; }
 }
 
-/* --- Header & Navigation --- */
+/* --- 2. จัดระเบียบ App และ Header --- */
+.app {
+    position: relative;
+    z-index: 10; /* ให้เนื้อหาอยู่เหนือฉากหลัง */
+    min-height: 100vh;
+}
+
 header {
     background: var(--pure-white);
-    border-bottom: 4px solid var(--vibrant-yellow); /* เพิ่มขอบสีเหลืองหนาๆ */
-    padding: 10px 20px;
-    position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    padding: 15px 5%;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    border-bottom: 4px solid var(--vibrant-yellow);
+}
+
+.header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .logo span {
     color: var(--deep-navy);
-    font-size: 1.4rem; font-weight: 800;
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-family: 'Kanit';
+}
+
+/* --- 3. จัดการปุ่มกดให้สวยและชัดเจน --- */
+nav {
+    display: flex;
+    gap: 10px;
+    align-items: center;
 }
 
 .nav-btn {
-    color: #666; font-weight: 600;
+    background: #f0f4f8;
+    color: var(--deep-navy);
+    border: none;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-btn:hover {
+    background: #e2e8f0;
 }
 
 .nav-btn.active {
     background: var(--energetic-orange) !important;
-    color: #fff !important;
-    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4) !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
 }
 
-/* --- Card Style --- */
+#nav-logout {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* --- 4. จัดการ Main Content และ Card --- */
+main {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+
 .card {
     background: var(--bg-glass);
     border-radius: var(--radius-lg);
-    border: none;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    color: var(--deep-navy);
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    color: var(--deep-navy); /* ตัวหนังสือใน Card ต้องเป็นสีกรม */
+    margin-bottom: 25px;
+    position: relative;
+    overflow: hidden;
 }
 
 .card-title {
     color: var(--deep-navy);
+    font-family: 'Kanit';
+    font-size: 1.4rem;
     border-left: 6px solid var(--energetic-orange);
     padding-left: 15px;
+    margin-bottom: 20px;
+}
+
+/* --- 5. จัดระเบียบ input และปุ่มทั่วไป --- */
+.search-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+input[type="text"], select {
+    background: #fff !important;
+    border: 2px solid #ddd !important;
+    border-radius: 10px !important;
+    padding: 12px 15px !important;
+    color: var(--deep-navy) !important;
+}
+
+.btn-primary {
+    background: var(--deep-navy) !important;
+    color: white !important;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 10px;
     font-weight: 700;
 }
 
-/* --- Hero Section --- */
+/* --- 6. แก้ไขส่วนอื่นๆ ที่เพี้ยน --- */
 .hero {
     background: linear-gradient(135deg, var(--vibrant-yellow) 0%, var(--energetic-orange) 100%);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
     color: var(--deep-navy);
-    border: none;
+    margin-bottom: 30px;
 }
 
-.hero h1 {
-    font-weight: 800;
-    text-shadow: none;
-}
+.hero h1 { font-weight: 800; margin-bottom: 10px; }
 
-/* --- Buttons --- */
-.btn-primary {
-    background: var(--deep-navy);
-    color: #fff;
-    border: 2px solid var(--vibrant-yellow);
-}
-
-.btn-primary:hover {
-    background: #001a4d;
-    transform: scale(1.05);
-}
-
-.btn-success {
-    background: var(--energetic-orange);
-    border: none;
-}
-
-/* --- Table --- */
-table {
-    background: #fff;
+/* แก้ไขตาราง */
+.tbl-wrap {
+    background: white;
     border-radius: 12px;
     overflow: hidden;
 }
@@ -148,30 +221,18 @@ thead tr {
 }
 
 th {
-    color: var(--vibrant-yellow) !important; /* หัวตารางตัวหนังสือเหลืองบนพื้นน้ำเงินเข้ม */
+    color: var(--vibrant-yellow) !important;
+    padding: 15px !important;
 }
 
-tbody tr:hover td {
-    background: rgba(135, 206, 235, 0.1);
+td {
+    padding: 12px 15px !important;
+    border-bottom: 1px solid #eee;
 }
 
-/* --- Stat Card --- */
-.stat-card {
-    background: #fff;
-    border-bottom: 4px solid var(--sky-blue);
-}
-
-.stat-num {
-    color: var(--deep-navy);
-    font-size: 2.5rem;
-}
-
-/* --- Progress Bar --- */
-.prog-bar-bg {
-    background: #eee;
-    height: 14px;
-}
-
-.prog-bar-fill {
-    background: linear-gradient(90deg, var(--sky-blue), var(--deep-navy));
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    header { padding: 10px; }
+    .header-inner { flex-direction: column; text-align: center; }
+    .dna-container { left: 2%; opacity: 0.2; }
 }
