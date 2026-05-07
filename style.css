@@ -140,18 +140,36 @@ body {
 .app { position: relative; z-index: 1; }
 
 header {
-    background: linear-gradient(90deg, #355C7D 0%, #6C5B7B 50%, #C06C84 100%) !important;
+    background: linear-gradient(
+        135deg,
+        rgba(255,255,255,0.18) 0%,
+        rgba(255,255,255,0.07) 50%,
+        rgba(255,255,255,0.13) 100%
+    ) !important;
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-bottom: 1px solid rgba(255,255,255,0.13);
+    box-shadow:
+        0 1px 0 rgba(255,255,255,0.28) inset,
+        0 8px 32px rgba(0,0,0,0.35);
     padding: 0 20px;
-    height: 70px;
+    height: 68px;
     width: 100%;
     box-sizing: border-box;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    border-bottom: 4px solid #F67280;
     display: flex;
     align-items: center;
+}
+
+header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
+    pointer-events: none;
 }
 
 .header-inner {
@@ -167,19 +185,24 @@ header {
     text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
-nav { display: flex; gap: 8px; }
+nav { display: flex; gap: 4px; }
 .nav-btn {
-    background: #f1f5f9;
-    color: #64748b;
+    background: transparent;
+    color: rgba(255,255,255,0.65);
     border: none;
-    padding: 10px 20px; border-radius: 12px; cursor: pointer; transition: 0.3s;
-    font-weight: 600;
+    padding: 8px 18px; border-radius: 14px; cursor: pointer; transition: all 0.2s;
+    font-weight: 600; font-family: 'Sarabun'; font-size: 0.9rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
-.nav-btn:hover { background: #e2e8f0; color: var(--matisse); }
+.nav-btn:hover {
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.95);
+}
 .nav-btn.active {
-    background: var(--matisse) !important;
+    background: linear-gradient(135deg, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0.11) 100%) !important;
     color: #fff !important;
-    box-shadow: 0 4px 15px rgba(53, 92, 125, 0.4);
+    border: 1px solid rgba(255,255,255,0.30);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset, 0 4px 12px rgba(0,0,0,0.22);
 }
 
 .cfg-dot    { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); display: inline-block; }
