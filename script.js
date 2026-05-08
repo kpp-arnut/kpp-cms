@@ -10,7 +10,7 @@ let adminInitialized = false; // FIX #3: guard against double-init
 let html5QrCode = null, scanning = false, lastScannedText = '', lastScannedAt = 0;
 let attendanceQr = null, attendanceScanning = false, lastAttendanceScan = '', lastAttendanceScanAt = 0;
 let scorePieChart = null;
-
+import { _sb, GOOGLE_CLIENT_ID } from './config.js'
 // ─── UI HELPERS ────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
 
@@ -1574,3 +1574,40 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('nav-status').classList.add('active');
   $('st-id-inp').addEventListener('keydown', e => { if (e.key === 'Enter') searchStatus(); });
 });
+
+// ═══ EXPOSE GLOBALS (required for inline onclick with type="module") ═══
+window.showPage             = showPage;
+window.doLogin              = doLogin;
+window.doLogout             = doLogout;
+window.searchStatus         = searchStatus;
+window.adminTab             = adminTab;
+window.loadGrading          = loadGrading;
+window.syncAssignSelect     = syncAssignSelect;
+window.syncFromClassroom    = syncFromClassroom;
+window.startGcSync          = startGcSync;
+window.saveGradesNow        = saveGradesNow;
+window.markAllStatus        = markAllStatus;
+window.toggleRow            = toggleRow;
+window.setScanMode          = setScanMode;
+window.handleScan           = handleScan;
+window.loadAttendance       = loadAttendance;
+window.saveAttendanceNow    = saveAttendanceNow;
+window.markAllAttendance    = markAllAttendance;
+window.setAttendanceScanMode = setAttendanceScanMode;
+window.handleAttendanceScan = handleAttendanceScan;
+window.renderBehaviorList   = renderBehaviorList;
+window.filterStudents       = filterStudents;
+window.prepareAddStudent    = prepareAddStudent;
+window.saveStudent          = saveStudent;
+window.importFile           = importFile;
+window.dlTemplate           = dlTemplate;
+window.printAllQR           = printAllQR;
+window.printQR              = printQR;
+window.populateAsgnModal    = populateAsgnModal;
+window.saveAssignment       = saveAssignment;
+window.syncSubjInput        = syncSubjInput;
+window.syncRoomInput        = syncRoomInput;
+window.exportExcel          = exportExcel;
+window.exportAttendanceReport = exportAttendanceReport;
+window.openModal            = openModal;
+window.closeModal           = closeModal;
