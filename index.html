@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="KPP.png">
+  <title>ระบบจัดการชั้นเรียน</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Kanit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="config.js"></script>
+  <script type="module" src="script.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bg-scene">
+  <div class="dna-canvas-wrap">
+    <canvas id="dna-canvas"></canvas>
+  </div>
+</div>
+
+<!-- Sync Progress Overlay -->
+<div id="sync-overlay">
+  <div class="spinner" style="width:40px;height:40px;border-width:4px"></div>
+  <div id="sync-progress-text">กำลังซิงค์...</div>
+  <div id="sync-progress-bar-wrap"><div id="sync-progress-bar"></div></div>
+</div>
+
+<div class="app">
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <img src="KPP.png" alt="Logo" style="height:1.5em;width:auto;object-fit:contain;vertical-align:middle;">
+        <span>ระบบจัดการชั้นเรียนออนไลน์</span>
+      </div>
+      <nav>
+        <button class="nav-btn active" onclick="showPage('status')" id="nav-status">📊 สถานะงาน</button>
+        <button class="nav-btn" onclick="showPage('admin')" id="nav-admin">
+          🔐 ตรวจงาน <span class="cfg-dot" id="cfg-dot"></span>
+        </button>
+        <button class="nav-btn" onclick="doLogout()" id="nav-logout"
+          style="display:none;color:#f87171;margin-left:12px;border:1px solid rgba(239,68,68,0.2);">
+          🚪 ออกจากระบบ
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ══ PAGE: STATUS ══ -->
+    <div class="page active" id="page-status">
+      <div class="hero">
+        <h1>ตรวจสอบสถานะการส่งงาน</h1>
+        <p>ใส่รหัสนักเรียนเพื่อดูคะแนนและสถานะงานทั้งหมด</p>
+        <div class="search-row">
+          <input type="text" id="st-id-inp" placeholder="รหัสนักเรียน เช่น 12345">
+          <button class="btn btn-primary" onclick="searchStatus()">🔍 ค้นหา</button>
+        </div>
+      </div>
+
+      <div id="st-results" style="display:none">
+        <div class="card mb-4" style="background:linear-gradient(135deg,rgba(14,165,233,0.1),rgba(15,23,42,0.9));">
+          <div class="flex justify-between items-center mb-3">
+            <div class="font-bold" style="font-size:1.1rem;color:var(--accent)">🚀 ความสำเร็จในการส่งงานรวม</div>
+            <div id="global-progress-text" class="font-bold" style="color:var(--green);text-shadow:0 0 10px rgba(16,185,129,0.4)">0%</div>
+          </div>
+          <div class="prog-bar-bg" style="height:18px;">
+            <div id="global-progress-fill" class="prog-bar-fill" style="width:0%;background:var(--green);"></div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid mb-4">
+          <div class="card flex flex-col items-center justify-center">
+            <div class="card-title w-full">📊 สัดส่วนคะแนนสะสม</div>
+            <div style="width:200px;height:200px;position:relative;">
+              <canvas id="scoreChart"></canvas>
+            </div>
+            <div class="text-center mt-4">
+              <div class="text-sm text-muted">ได้คะแนน</div>
+              <div id="final-weighted-score" style="font-size:3rem;font-weight:800;color:#fff;line-height:1;">0.0</div>
+              <div class="text-muted">/ 100 คะแนน</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">👤 ข้อมูลและคะแนนพฤติกรรม</div>
+            <div class="flex items-center gap-3 mb-4">
+              <div style="width:50px;height:50px;background:var(--primary);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px">👤</div>
+              <div>
+                <div id="st-name-display" class="font-bold" style="font-size:1.1rem">--</div>
+                <div id="st-meta-display" class="text-sm text-muted">--</div>
+              </div>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border-glass);margin:15px 0;">
+            <div class="prog-container">
+              <div class="prog-label">
+                <span class="font-bold" style="color:var(--purple)">💎 คะแนนจิตพิสัย (Behavior)</span>
+                <span id="behavior-score-text">10/15</span>
+              </div>
+              <div class="prog-bar-bg" style="height:12px;">
+                <div id="behavior-progress-fill" class="prog-bar-fill" style="width:66%;background:var(--purple);"></div>
+              </div>
+              <small class="text-muted mt-1 block">* เริ่มต้น 10 แต้ม, บวกเพิ่มความดีได้สูงสุด 15 แต้ม</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="flex items-center gap-3 mb-4">
+            <div style="width:52px;height:52px;background:linear-gradient(135deg,#0ea5e9,#06b6d4);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">📋</div>
+            <div>
+              <div style="font-family:'Kanit';font-size:1.2rem;font-weight:700;color:#fff" id="st-name">—</div>
+              <div style="font-size:.86rem;color:var(--text-dim)" id="st-meta">—</div>
+            </div>
+          </div>
+          <div class="grid-4 gap-3">
+            <div class="stat-card"><span class="stat-num" style="color:#0ea5e9" id="cnt-all">0</span><span class="stat-label">งานทั้งหมด</span></div>
+            <div class="stat-card"><span class="stat-num" style="color:#10b981" id="cnt-ok">0</span><span class="stat-label">ตรวจแล้ว</span></div>
+            <div class="stat-card"><span class="stat-num" style="color:#f59e0b" id="cnt-wait">0</span><span class="stat-label">รอตรวจ</span></div>
+            <div class="stat-card"><span class="stat-num" style="color:#ef4444" id="cnt-no">0</span><span class="stat-label">ยังไม่ส่ง</span></div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-title">📋 รายการงานทั้งหมด</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width:120px">วิชา / หมวด</th>
+                  <th style="min-width:160px">ชื่องาน</th>
+                  <th style="text-align:center;min-width:100px">รูปแบบ</th>
+                  <th style="text-align:center;min-width:110px">สถานะ</th>
+                  <th style="text-align:center;min-width:100px">คะแนน</th>
+                </tr>
+              </thead>
+              <tbody id="st-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-4" id="st-att-card" style="display:none">
+        <div class="card-title">📅 ประวัติการเข้าเรียนทั้งหมด</div>
+        <div id="st-att-content"></div>
+        <div class="flex gap-3 flex-wrap text-sm mt-3" style="color:#cbd5e1">
+          <span>✅ มา</span><span>❌ ขาด</span><span>📝 ลา</span><span>⏰ สาย</span>
+        </div>
+      </div>
+
+      <div id="st-empty" style="display:none">
+        <div class="card empty">
+          <div class="empty-ico">🔍</div>
+          <div class="empty-title">ไม่พบรหัสนักเรียนในระบบ</div>
+          <div class="text-sm text-muted" style="margin-top:8px">กรุณาตรวจสอบรหัสและลองใหม่อีกครั้ง</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: ADMIN ══ -->
+    <div class="page" id="page-admin">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="adminTab('grading')"    id="t-grading">✅ ตรวจงาน</button>
+        <button class="tab-btn"        onclick="adminTab('attendance')" id="t-attendance">📅 เช็กชื่อ</button>
+        <button class="tab-btn"        onclick="adminTab('behavior')"   id="t-behavior">💎 พฤติกรรม</button>
+        <button class="tab-btn"        onclick="adminTab('students')"   id="t-students">👥 นักเรียน</button>
+        <button class="tab-btn"        onclick="adminTab('asgn')"       id="t-asgn">📝 งาน</button>
+        <button class="tab-btn"        onclick="adminTab('export')"     id="t-export">📥 ดาวน์โหลด</button>
+      </div>
+
+      <!-- TAB: GRADING -->
+      <div id="tab-grading">
+        <div class="card mb-4">
+          <div class="card-title">🎯 เลือกงานที่จะตรวจ</div>
+          <div class="grid-3 gap-3 mb-3">
+            <div><label>วิชา</label><select id="g-subj" onchange="syncAssignSelect()"><option value="">— เลือกวิชา —</option></select></div>
+            <div><label>ห้องเรียน</label><select id="g-room" onchange="syncAssignSelect()"><option value="">— เลือกห้อง —</option></select></div>
+            <div><label>งาน</label><select id="g-asgn"><option value="">— เลือกงาน —</option></select></div>
+          </div>
+          <div class="flex gap-3 flex-wrap items-center">
+            <button class="btn btn-primary" onclick="loadGrading()">📋 โหลดรายชื่อ</button>
+            <button class="btn btn-outline" onclick="syncFromClassroom()"
+              style="color:#4285F4;border-color:#4285F4;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png"
+                style="height:18px;margin-right:8px;vertical-align:middle;">
+              ซิงค์จาก Classroom
+            </button>
+            <div class="scan-bar flex-1" style="min-width:240px">
+              <div style="font-size:.9rem;font-weight:600;color:#065f46">📷 โหมดสแกน QR</div>
+              <label class="sw"><input type="checkbox" id="scan-sw" onchange="setScanMode(this.checked)"><span class="sw-slider"></span></label>
+            </div>
+          </div>
+          <div id="scan-area" style="display:none;margin-top:12px">
+            <label>สแกน QR Code (หรือพิมพ์รหัสนักเรียนแล้วกด Enter)</label>
+            <div id="reader" style="width:100%;max-width:420px;margin:12px auto;border-radius:12px;overflow:hidden"></div>
+            <input type="text" id="scan-inp" placeholder="วาง QR / พิมพ์รหัสนักเรียน..."
+              onkeydown="if(event.key==='Enter'){handleScan(this.value);this.value=''}">
+          </div>
+        </div>
+
+        <div id="grading-wrap" style="display:none">
+          <div class="card">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <div class="card-title" style="margin:0" id="grading-title">📋 รายชื่อนักเรียน</div>
+              <div class="flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-ghost" onclick="markAllStatus('checked')">✅ ทั้งหมด</button>
+                <button class="btn btn-sm btn-ghost" onclick="markAllStatus('not-sent')">❌ รีเซ็ต</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:60px">เลขที่</th>
+                    <th style="width:100px">รหัส</th>
+                    <th>ชื่อ–สกุล</th>
+                    <th style="text-align:center;width:140px">สถานะ</th>
+                    <th style="text-align:center;width:100px">คะแนนที่ได้</th>
+                    <th style="text-align:center;width:70px">/ เต็ม</th>
+                  </tr>
+                </thead>
+                <tbody id="grading-tbody"></tbody>
+              </table>
+            </div>
+            <div class="mt-4" style="text-align:right">
+              <button class="btn btn-success btn-xl" onclick="saveGradesNow()">💾 บันทึกคะแนน</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: ATTENDANCE -->
+      <div id="tab-attendance" style="display:none">
+        <div class="card mb-4">
+          <div class="card-title">📅 บันทึกการเข้าเรียน</div>
+          <div class="grid-4 gap-3 mb-3">
+            <div><label>วิชา *</label><select id="att-subj"><option value="">— เลือกวิชา —</option></select></div>
+            <div><label>ห้องเรียน *</label><select id="att-room" onchange="loadAttendance()"><option value="">— เลือกห้อง —</option></select></div>
+            <div><label>วันที่</label><input type="date" id="att-date"></div>
+            <div><label>จำนวนชั่วโมง</label><input type="number" id="att-hours" value="1" min="1" max="5"></div>
+          </div>
+          <div class="mb-4">
+            <label>สถานะเริ่มต้น</label>
+            <select id="att-default-status" style="max-width:200px">
+              <option value="มา">มา</option>
+              <option value="สาย">สาย</option>
+              <option value="ลา">ลา</option>
+              <option value="ขาด">ขาด</option>
+            </select>
+          </div>
+          <div class="flex gap-3 flex-wrap items-center">
+            <button class="btn btn-primary" onclick="loadAttendance()">📋 โหลดรายชื่อ</button>
+            <div class="scan-bar flex-1" style="min-width:240px">
+              <div style="font-size:.9rem;font-weight:600;color:#065f46">📷 โหมดสแกนเช็กชื่อ</div>
+              <label class="sw"><input type="checkbox" id="att-scan-sw" onchange="setAttendanceScanMode(this.checked)"><span class="sw-slider"></span></label>
+            </div>
+          </div>
+          <div id="att-scan-area" style="display:none;margin-top:12px">
+            <label>สแกน QR นักเรียนเพื่อเช็กชื่อ</label>
+            <div id="att-reader" style="width:100%;max-width:420px;margin:12px auto;border-radius:12px;overflow:hidden"></div>
+            <input type="text" id="att-scan-inp" placeholder="หรือพิมพ์รหัสนักเรียนแล้วกด Enter"
+              onkeydown="if(event.key==='Enter'){handleAttendanceScan(this.value);this.value=''}">
+          </div>
+        </div>
+
+        <div id="attendance-wrap" style="display:none">
+          <div class="card">
+            <div class="flex items-center justify-between mb-4 gap-2 flex-wrap">
+              <div class="card-title" style="margin:0" id="attendance-title">📋 รายชื่อนักเรียน</div>
+              <div class="flex gap-2">
+                <button class="btn btn-sm btn-success" onclick="markAllAttendance('มา')">✔ มาเรียนทั้งหมด</button>
+                <button class="btn btn-sm btn-danger"  onclick="markAllAttendance('ขาด')">✖ ขาดเรียนทั้งหมด</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:60px">เลขที่</th>
+                    <th style="width:100px">รหัส</th>
+                    <th>ชื่อ–สกุล</th>
+                    <th style="text-align:center;width:100px">สถานะ</th>
+                    <th>หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody id="attendance-tbody"></tbody>
+              </table>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <button class="btn btn-success btn-xl" onclick="saveAttendanceNow()">💾 บันทึกการเข้าเรียน</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: BEHAVIOR -->
+      <div id="tab-behavior" style="display:none">
+        <div class="card">
+          <div class="card-title">💎 จัดการคะแนนจิตพิสัยรายบุคคล</div>
+          <p class="text-sm text-muted mb-3">บวกความดี (+1) หรือ หักคะแนนพฤติกรรม (-1)</p>
+          <input type="text" id="bh-search" placeholder="ค้นหาชื่อหรือรหัสนักเรียน..." oninput="renderBehaviorList()" class="mb-4">
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:100px">รหัส</th>
+                  <th>ชื่อ-สกุล</th>
+                  <th style="width:100px">ห้อง</th>
+                  <th style="text-align:center;width:140px">คะแนนจิตพิสัย</th>
+                  <th style="text-align:center;width:180px">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="bh-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: STUDENTS -->
+      <div id="tab-students" style="display:none">
+        <div class="card">
+          <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div class="card-title" style="margin:0">👥 รายชื่อนักเรียน</div>
+            <div class="flex gap-2 flex-wrap">
+              <button class="btn btn-primary btn-sm" onclick="prepareAddStudent()">➕ เพิ่มนักเรียน</button>
+              <button class="btn btn-success btn-sm" onclick="printAllQR()">🖨️ พิมพ์ QR ทั้งห้อง</button>
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('import-file').click()">📂 Import CSV/XLSX</button>
+              <input type="file" id="import-file" accept=".csv,.xlsx" style="display:none" onchange="importFile(this)">
+              <button class="btn btn-ghost btn-sm" onclick="dlTemplate()">📥 Template</button>
+            </div>
+          </div>
+          <div class="flex gap-3 mb-3 flex-wrap">
+            <select id="f-room" onchange="filterStudents()" style="flex:1;min-width:140px"><option value="">ทุกห้อง</option></select>
+            <input type="text" id="f-q" placeholder="ค้นหาชื่อ/รหัส..." oninput="filterStudents()" style="flex:2;min-width:200px">
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px">รหัส</th>
+                  <th>ชื่อ</th>
+                  <th>สกุล</th>
+                  <th style="width:90px">ชั้น</th>
+                  <th style="text-align:center;width:70px">เลขที่</th>
+                  <th style="text-align:center;width:60px">QR</th>
+                  <th style="text-align:center;width:60px">ลบ</th>
+                </tr>
+              </thead>
+              <tbody id="st-tbody-admin"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: ASSIGNMENTS -->
+      <div id="tab-asgn" style="display:none">
+        <div class="card">
+          <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div class="card-title" style="margin:0">📝 รายการงานที่มอบหมาย</div>
+            <div class="flex gap-2 flex-wrap">
+              <button class="btn btn-outline btn-sm" onclick="syncFromClassroom()"
+                style="color:#4285F4;border-color:#4285F4;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/59/Google_Classroom_Logo.png"
+                  style="height:16px;margin-right:6px;vertical-align:middle;">
+                ซิงค์จาก Classroom
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="populateAsgnModal();openModal('m-add-asgn')">➕ เพิ่มงาน</button>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ชื่องาน</th>
+                  <th style="width:120px">วิชา</th>
+                  <th style="width:90px">ห้อง</th>
+                  <th style="width:130px">หมวดหมู่</th>
+                  <th style="text-align:center;width:130px">คะแนนเต็ม (ผ่าน)</th>
+                  <th style="text-align:center;width:120px">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="asgn-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: EXPORT -->
+      <div id="tab-export" style="display:none">
+        <div class="grid-2 gap-4">
+          <div class="card">
+            <div class="card-title">📥 ดาวน์โหลดคะแนนงาน (.xlsx)</div>
+            <div class="mb-3"><label>ห้องเรียน</label><select id="exp-room"><option value="">— เลือกห้อง —</option></select></div>
+            <div class="mb-4"><label>วิชา</label><select id="exp-subj"><option value="">— เลือกวิชา —</option></select></div>
+            <button class="btn btn-success btn-xl w-full" onclick="exportExcel()">📥 ดาวน์โหลด Excel คะแนนงาน</button>
+          </div>
+          <div class="card">
+            <div class="card-title">📥 ดาวน์โหลดประวัติการเข้าเรียน (.xlsx)</div>
+            <div class="mb-3"><label>ห้องเรียน</label><select id="exp-att-room"><option value="">— เลือกห้อง —</option></select></div>
+            <div class="mb-4"><label>วิชา</label><select id="exp-att-subj"><option value="">— เลือกวิชา —</option></select></div>
+            <button class="btn btn-primary btn-xl w-full" onclick="exportAttendanceReport()">📥 ดาวน์โหลด Excel เช็กชื่อ</button>
+            <p class="text-sm text-muted text-center mt-3">* ระบบจะแยกคอลัมน์ตามจำนวนชั่วโมงที่บันทึกไว้</p>
+          </div>
+        </div>
+      </div>
+    </div><!-- end page-admin -->
+  </main>
+</div>
+
+<!-- ════ MODALS ════ -->
+<div class="modal-overlay" id="m-login">
+  <div class="modal" style="max-width:380px;text-align:center">
+    <div style="font-size:3.2rem;margin-bottom:8px">🔐</div>
+    <div class="modal-hd" style="justify-content:center;margin-bottom:4px">เข้าสู่ระบบ ADMIN</div>
+    <p class="text-sm text-muted mb-4">กรุณาใส่ข้อมูลเพื่อเข้าใช้งาน</p>
+    <div class="mb-3"><label>อีเมล</label><input type="text" id="l-user" placeholder="admin@school.ac.th"></div>
+    <div class="mb-4"><label>Password</label><input type="password" id="l-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn btn-primary btn-lg w-full" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <p id="l-err" class="text-sm mt-3" style="color:var(--red);display:none">❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง</p>
+    <div class="mt-4" style="border-top:1px solid var(--border-glass);padding-top:16px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('m-login');showPage('status')">← กลับหน้าค้นหา</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="m-add-st">
+  <div class="modal">
+    <div class="modal-hd">➕ เพิ่มนักเรียน <button class="modal-close" onclick="closeModal('m-add-st')">✕</button></div>
+    <div class="grid-2 gap-3 mb-3">
+      <div><label>รหัสนักเรียน *</label><input type="text" id="ns-id"></div>
+      <div><label>เลขที่</label><input type="number" id="ns-seat"></div>
+      <div><label>ชื่อ *</label><input type="text" id="ns-fn"></div>
+      <div><label>สกุล *</label><input type="text" id="ns-ln"></div>
+      <div style="grid-column:1/-1"><label>ชั้น/ห้อง *</label><input type="text" id="ns-cls"></div>
+      <div style="grid-column:1/-1">
+        <label>อีเมล (สำหรับซิงค์ Google Classroom) *</label>
+        <input type="text" id="ns-email" placeholder="example@school.ac.th">
+      </div>
+    </div>
+    <button class="btn btn-primary w-full" onclick="saveStudent()">💾 บันทึก</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="m-add-asgn">
+  <div class="modal">
+    <div class="modal-hd">
+      <span id="asgn-modal-title">➕ เพิ่มงาน / การสอบ</span>
+      <button class="modal-close" onclick="closeModal('m-add-asgn')">✕</button>
+    </div>
+    <input type="hidden" id="na-id">
+    <div class="grid-2 gap-3 mb-3">
+      <div style="grid-column:1/-1"><label>ชื่องาน *</label><input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1"></div>
+      <div style="grid-column:1/-1">
+        <label>รายละเอียดงาน</label>
+        <textarea id="na-desc" style="width:100%;border-radius:10px;padding:10px;font-family:Sarabun;border:2px solid transparent;background:rgba(255,255,255,0.95);" rows="2" placeholder="เช่น ให้นักเรียนวาดภาพวงจรชีวิต..."></textarea>
+      </div>
+      <div>
+        <label>หมวดหมู่คะแนน *</label>
+        <select id="na-cat">
+          <option value="ก่อนกลางภาค">ก่อนกลางภาค (20%)</option>
+          <option value="กลางภาค">กลางภาค (20%)</option>
+          <option value="หลังกลางภาค">หลังกลางภาค (20%)</option>
+          <option value="ปลายภาค">ปลายภาค (30%)</option>
+        </select>
+      </div>
+      <div>
+        <label>รูปแบบ *</label>
+        <select id="na-type">
+          <option value="เดี่ยว">งานเดี่ยว</option>
+          <option value="กลุ่ม">งานกลุ่ม</option>
+          <option value="สอบเก็บคะแนน">สอบเก็บคะแนน</option>
+          <option value="สอบกลางภาค">สอบกลางภาค</option>
+          <option value="สอบปลายภาค">สอบปลายภาค</option>
+        </select>
+      </div>
+      <div>
+        <label>วิชา *</label>
+        <select id="na-subj-sel" onchange="syncSubjInput(this.value)"></select>
+        <input type="text" id="na-subj" style="margin-top:6px;display:none">
+      </div>
+      <div>
+        <label>ห้องเรียน *</label>
+        <select id="na-room-sel" onchange="syncRoomInput(this.value)"></select>
+        <input type="text" id="na-room" style="margin-top:6px;display:none">
+      </div>
+      <div><label>คะแนนเต็ม</label><input type="number" id="na-max" value="10"></div>
+      <div><label>เกณฑ์ผ่าน</label><input type="number" id="na-pass" value="5"></div>
+    </div>
+    <button class="btn btn-primary w-full btn-lg" onclick="saveAssignment()">💾 บันทึกข้อมูลงาน</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="m-qr">
+  <div class="modal" style="max-width:340px;text-align:center">
+    <div class="modal-hd" style="justify-content:center;position:relative">
+      📷 QR Code นักเรียน
+      <button class="modal-close" onclick="closeModal('m-qr')" style="position:absolute;right:0">✕</button>
+    </div>
+    <div id="qr-wrap" style="display:flex;justify-content:center;margin:14px 0"></div>
+    <div id="qr-info" style="font-size:.95rem;color:var(--text-dim);margin-bottom:14px"></div>
+    <div class="flex gap-2 justify-center">
+      <button class="btn btn-primary" onclick="printQR()">🖨️ พิมพ์ QR</button>
+      <button class="btn btn-ghost" onclick="closeModal('m-qr')">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<script src="dna.js"></script>
+</body>
+</html>
