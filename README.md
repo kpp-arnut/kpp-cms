@@ -110,7 +110,7 @@ Reports are generated in accordance with Thai academic documentation standards:
 
 ---
 
-## 📄 License
+## License
 This project is licensed under the **MIT License**.
 
 **Developed by:** Arnut Klangprapun
