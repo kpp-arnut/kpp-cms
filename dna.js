@@ -1,4 +1,5 @@
 (function () {
+  function init() {
   const canvas = document.getElementById('dna-canvas');
   if (!canvas) return;
 
@@ -206,5 +207,16 @@
     mediaReducedMotion.addListener(handleMotionPreference);
   }
 
-  handleMotionPreference();
+      handleMotionPreference();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    requestAnimationFrame(init);
+  }
 })();
+
+
+
+
