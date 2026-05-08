@@ -674,7 +674,7 @@ async function handleScan(val) {
     const sc = $('sc-' + idx); if (sc) sc.value = result.assignment.max_score;
     const row = $('gr-' + idx);
     if (row) { row.scrollIntoView({behavior:'smooth',block:'center'}); row.style.background='rgba(16,185,129,.1)'; setTimeout(()=>row.style.background='',1200); }
-    showToast('✅ ' + result.student.first_name + ' ' + result.student.last_name, 'success');
+    showToast(result.student.first_name + ' ' + result.student.last_name, 'success');
   } catch (e) { showToast('บันทึกไม่สำเร็จ: ' + e, 'error'); }
 }
 
@@ -802,7 +802,7 @@ async function handleAttendanceScan(val) {
     const statusEl = $('att-status-' + idx); if (statusEl) statusEl.value = status;
     updateAttendanceRowVisual(idx, status);
     const row = $('att-row-' + idx); if (row) row.scrollIntoView({behavior:'smooth',block:'center'});
-    showToast('📅 ' + result.student.first_name + ' ' + result.student.last_name + ' = ' + status, 'success');
+    showToast(result.student.first_name + ' ' + result.student.last_name + ' = ' + status, 'success');
   } catch (e) { showToast('เช็กชื่อไม่สำเร็จ: ' + e, 'error'); }
 }
 
@@ -1385,7 +1385,7 @@ async function _doGcSync(room, subj) {
     }
     setSyncProgress(0);
     gcLog(`\n════ ซิงค์เสร็จ! ${works.length} งาน | มีคะแนน: ${totalGraded} รายการ ════`, 'ok');
-    showToast(`✅ ซิงค์สำเร็จ! ${works.length} งาน | คะแนน ${totalGraded} รายการ`, 'success');
+    showToast(`ซิงค์สำเร็จ! ${works.length} งาน | คะแนน ${totalGraded} รายการ`, 'success');
     assignments = await gasCall('getAllAssignments');
     populateDropdowns(); renderAsgnTable(); syncAssignSelect();
     const btn = $('gc-start-btn');
