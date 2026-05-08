@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/cms/'
+  base: '/cms/',
+  publicDir: 'public'
 })
