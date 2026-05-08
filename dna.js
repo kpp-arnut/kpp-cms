@@ -12,6 +12,7 @@
 
   function resizeCanvas() {
     const rect = wrap.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
     const dpr = window.devicePixelRatio || 1;
 
     canvas.width = Math.max(1, Math.floor(rect.width * dpr));
@@ -96,12 +97,20 @@
     animationId = requestAnimationFrame(render);
   }
 
-  function start() {
+    function start() {
     if (isRunning) return;
     isRunning = true;
     resizeCanvas();
+    
+    const rect = wrap.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      isRunning = false;
+      setTimeout(start, 100);
+      return;
+    }
+    
     render();
-  }
+}
 
   function stop() {
     if (!isRunning) return;
