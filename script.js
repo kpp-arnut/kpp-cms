@@ -1471,7 +1471,7 @@ async function exportExcel() {
 
 async function exportAttendanceReport() {
   const room = $('exp-att-room').value, subj = $('exp-att-subj').value;
-  if (!room || !subj) { showToast('กรุณาเลือกห้องและวิชา','error'); return; }
+  if (!room || !subj) { showToast('กรุณาเลือกห้องและวิชา', 'error'); return; }
   
   try {
     showToast('🚀 กำลังสร้างรายงาน...', 'info');
@@ -1479,7 +1479,7 @@ async function exportAttendanceReport() {
     const allAtt = await gasCall('getAttendanceForRoom', room);
     const filteredAtt = (allAtt || []).filter(a => a.subject === subj);
     
-    if (!filteredAtt.length) { showToast('ไม่พบข้อมูลการเช็กชื่อวิชา '+subj, 'warn'); return; }
+    if (!filteredAtt.length) { showToast('ไม่พบข้อมูลการเช็กชื่อวิชา ' + subj, 'warn'); return; }
 
     const attMap = {}, dateHoursMap = {};
     filteredAtt.forEach(a => {
@@ -1492,8 +1492,8 @@ async function exportAttendanceReport() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('การเข้าเรียน');
 
-    // เตรียม Header
-    const header = ['เลขที่', 'รหัส', 'ชื่อ-นามสกุล'];
+    // 1. เตรียม Header (ใช้ Format เดียวกับ exportExcel)
+    const header = ['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'สกุล'];
     const dateCfg = [];
     dates.forEach(d => {
       const h = dateHoursMap[d];
@@ -1505,11 +1505,11 @@ async function exportAttendanceReport() {
     header.push('ชม.รวม', 'มาเรียน(ชม.)', 'ร้อยละ', 'ผลลัพธ์');
 
     const headerRow = worksheet.addRow(header);
-    headerRow.height = 80; // ความสูงสำหรับแนวตั้ง
+    headerRow.height = 80;
 
-    // ใส่ข้อมูลนักเรียน
+    // 2. ใส่ข้อมูลนักเรียน (แยก first_name และ last_name)
     classStudents.forEach(s => {
-      const rowData = [s.seat_no, s.id, s.first_name + ' ' + s.last_name];
+      const rowData = [s.seat_no, s.id, s.first_name, s.last_name];
       let totalH = 0, attendedH = 0;
       dateCfg.forEach(cfg => {
         const rec = attMap[s.id + '_' + cfg.date];
@@ -1528,26 +1528,35 @@ async function exportAttendanceReport() {
       worksheet.addRow(rowData);
     });
 
-    // ปรับแต่งฟอนต์และการหมุน
+    // 3. ปรับแต่งฟอนต์และการหมุน (Format เดียวกับ exportExcel)
     worksheet.eachRow((row, rowNumber) => {
       row.eachCell((cell, colNumber) => {
         cell.font = { name: 'TH Sarabun New', size: 14 };
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
         cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
         
-        // หมุน Header ตั้งแต่คอลัมน์วันที่ (คอลัมน์ที่ 4 เป็นต้นไป)
-        if (rowNumber === 1 && colNumber > 3) {
+        // หมุน Header ตั้งแต่คอลัมน์ที่ 5 เป็นต้นไป (รายการวันที่)
+        if (rowNumber === 1 && colNumber > 4) {
           cell.alignment = { textRotation: 90, vertical: 'middle', horizontal: 'center' };
           cell.font = { name: 'TH Sarabun New', size: 14, bold: true };
         }
       });
     });
 
+    // ปรับความกว้างคอลัมน์มาตรฐาน
+    worksheet.getColumn(1).width = 8;  // เลขที่
+    worksheet.getColumn(2).width = 15; // รหัส
+    worksheet.getColumn(3).width = 18; // ชื่อ
+    worksheet.getColumn(4).width = 18; // สกุล
+
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `รายงานเช็กชื่อ_${room}_${subj}.xlsx`);
-    showToast('สำเร็จ!', 'success');
+    showToast('ดาวน์โหลดรายงานสำเร็จ', 'success');
 
-  } catch (e) { showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); }
+  } catch (e) { 
+    console.error(e);
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error'); 
+  }
 }
 
 // ─── INIT ──────────────────────────────────────────────────
