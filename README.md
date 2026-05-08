@@ -1,6 +1,5 @@
 # 🎓 Class Management System (CMS)
-
-A professional, high-performance class management solution designed for educators. This system streamlines attendance, grading, and behavior tracking, featuring native integration with Google Classroom and standardized Excel reporting.
+A professional, class management solution designed for educators. This system streamlines attendance, grading, and behavior tracking, featuring native integration with Google Classroom and standardized Excel reporting.
 
 ---
 
@@ -39,6 +38,8 @@ Professional `.xlsx` exports optimized for Thai administration:
 |---|---|
 | **Frontend** | HTML5, CSS3 (Glassmorphism UI), Vanilla JavaScript |
 | **Backend & DB** | Supabase (PostgreSQL) |
+| **Build Tool** | Vite |
+| **CI/CD** | GitHub Actions → GitHub Pages |
 | **Cloud Integration** | Google Classroom API (REST) |
 | **Libraries** | ExcelJS, Html5-QRCode, Chart.js, QRCode.js |
 
@@ -46,8 +47,24 @@ Professional `.xlsx` exports optimized for Thai administration:
 
 ## 🚀 Installation & Setup
 
-### 1. Database Configuration
+### 1. Clone the repository
+```bash
+git clone https://github.com/kpp-arnut/cms.git
+cd cms
+npm install
+```
 
+### 2. Environment Variables
+Create a `.env` file in the root directory:
+```env
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_KEY=your_supabase_anon_key
+VITE_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+```
+
+> ⚠️ Never commit `.env` to version control. It is listed in `.gitignore` by default.
+
+### 3. Database Configuration
 Initialize your Supabase project with the following table structures:
 
 | Table | Columns |
@@ -57,20 +74,36 @@ Initialize your Supabase project with the following table structures:
 | `grades` | `student_id`, `assignment_id`, `score`, `status`, `updated_at` |
 | `attendance` | `student_id`, `attendance_date`, `subject`, `status`, `hours`, `remark` |
 
-### 2. API Keys
-
-Update your credentials in the main configuration file:
-
-```javascript
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+### 4. Google Cloud Console
+Add your deployment URL to **Authorized JavaScript Origins**:
+```
+http://localhost:5173
+https://kpp-arnut.github.io
 ```
 
+### 5. Run locally
+```bash
+npm run dev
+```
+
+---
+
+## 🚢 Deployment
+
+This project auto-deploys to **GitHub Pages** via GitHub Actions on every push to `master`.
+
+Add the following **Repository Secrets** under Settings → Secrets and variables → Actions:
+
+| Secret | Description |
+|---|---|
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_KEY` | Your Supabase anon key |
+| `VITE_GOOGLE_CLIENT_ID` | Your Google OAuth client ID |
+
+---
+
 ## 📋 Report Standards
-
 Reports are generated in accordance with Thai academic documentation standards:
-
 - **Identity Consistency:** First and Last names are separated into individual columns for easy sorting.
 - **Space Optimization:** Row heights are set to `100px` for headers, utilizing `textRotation: 90` for date and assignment columns.
 - **Typography:** Defaults to `TH Sarabun New`, the official standard for Thai government and academic use.
@@ -78,7 +111,6 @@ Reports are generated in accordance with Thai academic documentation standards:
 ---
 
 ## 📄 License
-
 This project is licensed under the **MIT License**.
 
 **Developed by:** Arnut Klangprapun
