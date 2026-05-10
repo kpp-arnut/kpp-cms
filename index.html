@@ -441,7 +441,7 @@
       <div><label>สกุล *</label><input type="text" id="ns-ln"></div>
       <div style="grid-column:1/-1"><label>ชั้น/ห้อง *</label><input type="text" id="ns-cls"></div>
       <div style="grid-column:1/-1">
-        <label>อีเมล (สำหรับซิงค์ Google Classroom) *</label>
+        <label>อีเมล (สำหรับซิงค์ Google Classroom)</label>
         <input type="text" id="ns-email" placeholder="example@school.ac.th">
       </div>
     </div>
@@ -449,6 +449,7 @@
   </div>
 </div>
 
+<!-- ══ MODAL: ADD/EDIT ASSIGNMENT ══ -->
 <div class="modal-overlay" id="m-add-asgn">
   <div class="modal">
     <div class="modal-hd">
@@ -457,11 +458,22 @@
     </div>
     <input type="hidden" id="na-id">
     <div class="grid-2 gap-3 mb-3">
-      <div style="grid-column:1/-1"><label>ชื่องาน *</label><input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1"></div>
+
+      <!-- ชื่องาน -->
+      <div style="grid-column:1/-1">
+        <label>ชื่องาน *</label>
+        <input type="text" id="na-nm" placeholder="เช่น สอบย่อยบทที่ 1">
+      </div>
+
+      <!-- รายละเอียด -->
       <div style="grid-column:1/-1">
         <label>รายละเอียดงาน</label>
-        <textarea id="na-desc" style="width:100%;border-radius:10px;padding:10px;font-family:Sarabun;border:2px solid transparent;background:rgba(255,255,255,0.95);" rows="2" placeholder="เช่น ให้นักเรียนวาดภาพวงจรชีวิต..."></textarea>
+        <textarea id="na-desc"
+          style="width:100%;border-radius:10px;padding:10px;font-family:Sarabun;border:2px solid transparent;background:rgba(255,255,255,0.95);"
+          rows="2" placeholder="เช่น ให้นักเรียนวาดภาพวงจรชีวิต..."></textarea>
       </div>
+
+      <!-- หมวดหมู่ -->
       <div>
         <label>หมวดหมู่คะแนน *</label>
         <select id="na-cat">
@@ -471,6 +483,8 @@
           <option value="ปลายภาค">ปลายภาค (30%)</option>
         </select>
       </div>
+
+      <!-- รูปแบบ -->
       <div>
         <label>รูปแบบ *</label>
         <select id="na-type">
@@ -481,18 +495,47 @@
           <option value="สอบปลายภาค">สอบปลายภาค</option>
         </select>
       </div>
+
+      <!-- วิชา -->
       <div>
         <label>วิชา *</label>
         <select id="na-subj-sel" onchange="syncSubjInput(this.value)"></select>
-        <input type="text" id="na-subj" style="margin-top:6px;display:none">
+        <input type="text" id="na-subj" style="margin-top:6px;display:none" placeholder="พิมพ์ชื่อวิชา...">
       </div>
+
+      <!-- ห้องเรียน -->
       <div>
         <label>ห้องเรียน *</label>
         <select id="na-room-sel" onchange="syncRoomInput(this.value)"></select>
-        <input type="text" id="na-room" style="margin-top:6px;display:none">
+        <input type="text" id="na-room" style="margin-top:6px;display:none" placeholder="พิมพ์ชื่อห้อง...">
       </div>
-      <div><label>คะแนนเต็ม</label><input type="number" id="na-max" value="10"></div>
-      <div><label>เกณฑ์ผ่าน</label><input type="number" id="na-pass" value="5"></div>
+
+      <!-- คะแนนเต็ม -->
+      <div>
+        <label>คะแนนเต็ม</label>
+        <input type="number" id="na-max" value="10" min="1">
+      </div>
+
+      <!-- เกณฑ์ผ่าน -->
+      <div>
+        <label>เกณฑ์ผ่าน</label>
+        <input type="number" id="na-pass" value="5" min="0">
+      </div>
+
+      <!-- ── กำหนดส่งงาน (ไม่บังคับ) ── -->
+      <div style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px">
+          📅 กำหนดส่งงาน
+          <span style="font-size:.78rem;color:var(--text-dim);font-weight:400">(ไม่บังคับ — ถ้าไม่กำหนดจะไม่มีการหักคะแนน)</span>
+        </label>
+        <input type="date" id="na-deadline"
+          style="max-width:220px">
+        <div style="margin-top:6px;font-size:.78rem;color:var(--text-dim);line-height:1.6">
+          ⚠️ หากส่งช้ากว่ากำหนด จะหัก <strong>1 คะแนน/วัน</strong>
+          โดยคะแนนต่ำสุดไม่น้อยกว่า <strong>20%</strong> ของคะแนนเต็ม
+        </div>
+      </div>
+
     </div>
     <button class="btn btn-primary w-full btn-lg" onclick="saveAssignment()">💾 บันทึกข้อมูลงาน</button>
   </div>
