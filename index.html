@@ -306,7 +306,14 @@
         <div class="card">
           <div class="card-title">💎 จัดการคะแนนจิตพิสัยรายบุคคล</div>
           <p class="text-sm text-muted mb-3">บวกความดี (+1) หรือ หักคะแนนพฤติกรรม (-1)</p>
-          <input type="text" id="bh-search" placeholder="ค้นหาชื่อหรือรหัสนักเรียน..." oninput="renderBehaviorList()" class="mb-4">
+          <div class="mb-3">
+            <label>ห้องเรียน</label>
+            <select id="bh-room" onchange="renderBehaviorList()" style="max-width:200px">
+              <option value="">— เลือกห้อง —</option>
+            </select>
+          </div>
+          <input type="text" id="bh-search" placeholder="ค้นหาชื่อหรือรหัสนักเรียน..."
+                class="mb-4" oninput="renderBehaviorList()">
           <div class="tbl-wrap">
             <table>
               <thead>
@@ -338,8 +345,8 @@
             </div>
           </div>
           <div class="flex gap-3 mb-3 flex-wrap">
-            <select id="f-room" onchange="filterStudents()" style="flex:1;min-width:140px"><option value="">ทุกห้อง</option></select>
-            <input type="text" id="f-q" placeholder="ค้นหาชื่อ/รหัส..." oninput="filterStudents()" style="flex:2;min-width:200px">
+            <select id="f-room" onchange="filterStudents()" style="flex:1;min-width:140px"><option value="">เลือกห้อง</option></select>
+            <input type="text" id="f-q" placeholder="ค้นหาชื่อ/รหัส..." style="flex:2;min-width:200px">
           </div>
           <div class="tbl-wrap">
             <table>
