@@ -353,6 +353,9 @@ async function searchStatus() {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">ยังไม่มีรายการงานในขณะนี้</td></tr>';
     }
 
+    // Build rows with DocumentFragment for performance
+    const fragment = document.createDocumentFragment();
+
     sorted.forEach(g => {
       const a        = g.assignments || {};
       const cat      = a.category    || 'ก่อนกลางภาค';
@@ -377,7 +380,7 @@ async function searchStatus() {
         td.colSpan = 5;
         td.textContent = '📚 ' + subjectName;
         tr.appendChild(td);
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
         lastSubject = subjectName;
       }
 
@@ -428,8 +431,10 @@ async function searchStatus() {
         <td style="text-align:center"><span class="badge ${typeClass}">${escapeHtml(type)}</span></td>
         <td style="text-align:center">${badge}</td>
         <td style="text-align:center">${scoreHtml}</td>`;
-      tbody.appendChild(tr);
+      fragment.appendChild(tr);
     });
+
+    tbody.appendChild(fragment);
 
     // Weighted score
     let weightedTotal = 0;
@@ -635,8 +640,9 @@ function updateEffectiveDisplay(i) {
 }
 
 function renderGradingTable() {
-  const tb = $('grading-tbody'); tb.innerHTML = '';
-  gradingRows.forEach((row, i) => {
+  const tb = $('grading-tbody');
+  // Build all rows as a string and assign once — avoids repeated reflow
+  const rows = gradingRows.map((row, i) => {
     const s   = row.student;
     const cls = row.status === 'checked' ? 'checked' : row.status === 'waiting' ? 'waiting' : 'not-sent';
 
@@ -652,7 +658,7 @@ function renderGradingTable() {
          <span style="color:var(--text-dim);font-size:.8rem;text-decoration:line-through;margin-left:4px">${row.score}</span>`
       : '';
 
-    tb.innerHTML += `<tr id="gr-${i}">
+    return `<tr id="gr-${i}">
       <td style="text-align:center">${s.seat_no || '—'}</td>
       <td style="font-size:.85rem;color:var(--text-dim)">${escapeHtml(s.id)}</td>
       <td>
@@ -672,6 +678,7 @@ function renderGradingTable() {
       <td style="text-align:center;font-weight:700;color:var(--text-dim)">${row.maxScore}</td>
     </tr>`;
   });
+  tb.innerHTML = rows.join('');
 }
 
 function toggleRow(i) {
@@ -824,11 +831,10 @@ async function loadAttendance() {
   }
 }
 
-// ─── RENDER ATTENDANCE TABLE (FIXED) ──────────────────────
+// ─── RENDER ATTENDANCE TABLE ──────────────────────────────
 function renderAttendanceTable() {
   const tb = $('attendance-tbody');
   if (!tb) return;
-  tb.innerHTML = '';
 
   const statuses = [
     { val: 'มา',  label: 'มา',  cls: 'att-radio-มา'  },
@@ -837,29 +843,32 @@ function renderAttendanceTable() {
     { val: 'ขาด', label: 'ขาด', cls: 'att-radio-ขาด' },
   ];
 
+  // ── Build everything in a DocumentFragment — zero mid-loop reflow ──
+  const fragment = document.createDocumentFragment();
+
   attendanceRows.forEach((row, i) => {
     const tr = document.createElement('tr');
     tr.id = 'att-row-' + i;
     tr.className = 'row-' + row.status;
 
-    // ── เลขที่ ──
+    // เลขที่
     const tdSeat = document.createElement('td');
     tdSeat.style.cssText = 'text-align:center;font-weight:700';
     tdSeat.textContent = row.student.seat_no || '—';
 
-    // ── รหัส ──
+    // รหัส
     const tdId = document.createElement('td');
     tdId.style.cssText = 'color:#cbd5e1;font-size:.85rem';
     tdId.textContent = row.student.id;
 
-    // ── ชื่อ-สกุล ──
+    // ชื่อ-สกุล
     const tdName = document.createElement('td');
     const nameSpan = document.createElement('span');
     nameSpan.style.cssText = 'color:#fff;font-size:1.05rem;font-weight:600';
     nameSpan.textContent = row.student.first_name + ' ' + row.student.last_name;
     tdName.appendChild(nameSpan);
 
-    // ── กลุ่มปุ่มสถานะ ──
+    // กลุ่มปุ่มสถานะ
     const tdStatus = document.createElement('td');
     const radioGroup = document.createElement('div');
     radioGroup.className = 'att-radio-group';
@@ -870,15 +879,11 @@ function renderAttendanceTable() {
       label.className = 'att-radio-label ' + s.cls + (row.status === s.val ? ' checked' : '');
 
       const input = document.createElement('input');
-      input.type  = 'radio';
-      input.name  = 'att-status-' + i;
-      input.value = s.val;
+      input.type    = 'radio';
+      input.name    = 'att-status-' + i;
+      input.value   = s.val;
       input.checked = (row.status === s.val);
-
-      // ผูก event listener โดยตรง (ไม่ใช้ inline onchange)
-      input.addEventListener('change', () => {
-        updateAttendanceRowVisual(i, s.val);
-      });
+      input.addEventListener('change', () => updateAttendanceRowVisual(i, s.val));
 
       label.appendChild(input);
       label.appendChild(document.createTextNode(' ' + s.label));
@@ -887,7 +892,7 @@ function renderAttendanceTable() {
 
     tdStatus.appendChild(radioGroup);
 
-    // ── หมายเหตุ ──
+    // หมายเหตุ
     const tdRemark = document.createElement('td');
     const remarkInput = document.createElement('input');
     remarkInput.type        = 'text';
@@ -902,20 +907,18 @@ function renderAttendanceTable() {
     tr.appendChild(tdName);
     tr.appendChild(tdStatus);
     tr.appendChild(tdRemark);
-    tb.appendChild(tr);
+    fragment.appendChild(tr);
   });
+
+  // แทนที่ innerHTML ด้วย replaceChildren — เร็วกว่าและไม่ re-parse HTML
+  tb.replaceChildren(fragment);
 }
 
 // ─── UPDATE ATTENDANCE ROW VISUAL ─────────────────────────
 function updateAttendanceRowVisual(index, value) {
-  // อัปเดต state
   attendanceRows[index].status = value;
-
-  // อัปเดต class ของแถว
   const tr = $('att-row-' + index);
   if (tr) tr.className = 'row-' + value;
-
-  // อัปเดต checked class บน label ทุกตัวในแถว
   const rg = $('att-rg-' + index);
   if (rg) {
     rg.querySelectorAll('.att-radio-label').forEach(lbl => {
@@ -927,10 +930,8 @@ function updateAttendanceRowVisual(index, value) {
 
 function markAllAttendance(status) {
   attendanceRows.forEach((row, i) => {
-    // อัปเดต radio ที่ถูกต้อง
     const radio = document.querySelector(`input[name="att-status-${i}"][value="${status}"]`);
     if (radio) radio.checked = true;
-    // อัปเดต state และ visual
     updateAttendanceRowVisual(i, status);
   });
 }
@@ -1025,6 +1026,7 @@ function filterStudents() {
     return;
   }
 
+  // Build all HTML at once then assign — prevents reflow per row
   tb.innerHTML = list.map(s => `<tr>
     <td style="font-size:.85rem">${escapeHtml(s.id)}</td>
     <td>${escapeHtml(s.first_name)}</td>
@@ -1066,20 +1068,72 @@ function prepareAddStudent() {
   openModal('m-add-st');
 }
 
-async function ensureGradeRowsForStudent(studentId, classroom) {
-  const roomAssignments = assignments.filter(a => a.classroom === classroom);
-  if (!roomAssignments.length) return;
-  const { data: existingGrades } = await _sb
-    .from('grades').select('assignment_id').eq('student_id', studentId)
-    .in('assignment_id', roomAssignments.map(a => a.id));
-  const existingIds = new Set((existingGrades || []).map(g => g.assignment_id));
-  const newRows = roomAssignments
-    .filter(a => !existingIds.has(a.id))
-    .map(a => ({ student_id: studentId, assignment_id: a.id, score: null, max_score: a.max_score, status: 'not_sent' }));
-  if (newRows.length > 0) {
-    const { error } = await _sb.from('grades').upsert(newRows, { onConflict: 'student_id,assignment_id', ignoreDuplicates: true });
-    if (error) console.error('ensureGradeRowsForStudent error:', error);
+// ─── BATCH GRADE ROW CREATION (แก้ปัญหา Import 40+ คนแขวง) ────────────────
+// เดิม: วนลูป await ทีละคน → N×M queries (ช้ามาก)
+// ใหม่: query ครั้งเดียว แล้ว upsert batch เดียว
+async function ensureGradeRowsForStudents(studentList) {
+  if (!studentList || studentList.length === 0) return;
+
+  // จัดกลุ่มนักเรียนตามห้อง
+  const byRoom = {};
+  studentList.forEach(s => {
+    if (!byRoom[s.classroom]) byRoom[s.classroom] = [];
+    byRoom[s.classroom].push(s);
+  });
+
+  for (const classroom of Object.keys(byRoom)) {
+    const roomStudents   = byRoom[classroom];
+    const roomAssignments = assignments.filter(a => a.classroom === classroom);
+    if (!roomAssignments.length) continue;
+
+    const studentIds    = roomStudents.map(s => s.id);
+    const assignmentIds = roomAssignments.map(a => a.id);
+
+    // ดึง grade rows ที่มีอยู่แล้วทั้งหมดในห้องนี้ — 1 query
+    const { data: existingGrades } = await _sb
+      .from('grades')
+      .select('student_id, assignment_id')
+      .in('student_id', studentIds)
+      .in('assignment_id', assignmentIds);
+
+    const existingSet = new Set(
+      (existingGrades || []).map(g => g.student_id + '__' + g.assignment_id)
+    );
+
+    // สร้างเฉพาะ rows ที่ยังไม่มี
+    const newRows = [];
+    roomStudents.forEach(s => {
+      roomAssignments.forEach(a => {
+        if (!existingSet.has(s.id + '__' + a.id)) {
+          newRows.push({
+            student_id:    s.id,
+            assignment_id: a.id,
+            score:         null,
+            max_score:     a.max_score,
+            status:        'not_sent'
+          });
+        }
+      });
+    });
+
+    if (newRows.length > 0) {
+      // Batch upsert ครั้งเดียว แบ่งเป็น chunk 500 rows ถ้าจำนวนมาก
+      const CHUNK = 500;
+      for (let i = 0; i < newRows.length; i += CHUNK) {
+        const chunk = newRows.slice(i, i + CHUNK);
+        const { error } = await _sb.from('grades').upsert(chunk, {
+          onConflict: 'student_id,assignment_id',
+          ignoreDuplicates: true
+        });
+        if (error) console.error('ensureGradeRowsForStudents error:', error);
+      }
+    }
   }
+}
+
+// ยังคงไว้เพื่อใช้กรณีเพิ่มนักเรียนทีละคน
+async function ensureGradeRowsForStudent(studentId, classroom) {
+  await ensureGradeRowsForStudents([{ id: studentId, classroom }]);
 }
 
 async function saveStudent() {
@@ -1139,7 +1193,7 @@ function dlTemplate() {
   XLSX.writeFile(wb, 'template_นักเรียน.xlsx');
 }
 
-// ─── IMPORT ────────────────────────────────────────────────
+// ─── IMPORT (แก้ปัญหาหลัก: ไม่วนลูป await ทีละคนอีกต่อไป) ──────────────
 async function importFile(input) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -1156,14 +1210,22 @@ async function importFile(input) {
         seat_no:    parseInt(r['เลขที่']     || r['seat_no']    || 0),
         email:      String(r['อีเมล']        || r['email']      || '')
       })).filter(s => s.id);
+
+      // 1. Upsert นักเรียนทั้งหมดพร้อมกัน
       await gasCall('upsertStudents', list);
       showToast('นำเข้า ' + list.length + ' คนสำเร็จ', 'success');
+
+      // 2. โหลด students + assignments ใหม่ก่อน ให้ ensureGradeRows มีข้อมูลครบ
       students    = await gasCall('getStudents');
       assignments = await gasCall('getAllAssignments');
+
+      // 3. สร้าง grade rows แบบ batch — ครั้งเดียวสำหรับทุกคน ไม่วนลูป await
       showToast('กำลังตั้งค่างานค้าง...', 'info');
-      for (const s of list) { await ensureGradeRowsForStudent(s.id, s.classroom); }
-      populateDropdowns(); renderStudentTable();
-      showToast(`✅ ตั้งค่างานค้างสำเร็จ (${list.length} คน)`, 'success');
+      await ensureGradeRowsForStudents(list);
+
+      populateDropdowns();
+      renderStudentTable();
+      showToast(`✅ นำเข้าสำเร็จ (${list.length} คน)`, 'success');
     } catch (e) { showToast('ผิดพลาด: ' + e, 'error'); }
   };
   reader.readAsBinaryString(file); input.value = '';
@@ -1206,17 +1268,14 @@ async function printAllQR() {
       correctLevel: QRCode.CorrectLevel.H
     });
 
-    // รอให้ QR render เสร็จ (canvas หรือ img)
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // ดึง base64 จาก canvas ก่อน ถ้าไม่มีค่อยใช้ img
     const canvas = qrDiv.querySelector('canvas');
     const img    = qrDiv.querySelector('img');
     let src = '';
     if (canvas) {
       src = canvas.toDataURL('image/png');
     } else if (img && img.src) {
-      // รอให้ img โหลดเสร็จ
       await new Promise(resolve => {
         if (img.complete && img.naturalWidth > 0) { resolve(); return; }
         img.onload  = resolve;
