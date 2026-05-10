@@ -24,14 +24,6 @@ Real-time merit/demerit system on a 0–15 point scale with instant database upd
 ### 🔗 Google Classroom Sync
 One-click synchronization of rosters, assignments, and returned grades via OAuth2.
 
-### 📊 Standardized Reporting
-Professional `.xlsx` exports optimized for Thai administration:
-- **TH Sarabun New** font integration (14pt)
-- **Header Rotation:** 90° text rotation for vertical headers to fit more data per page
-- **Unified Data Format:** Consistent First Name / Last Name separation across all report types
-
----
-
 ## 🛠️ Technical Stack
 
 | Layer | Technology |
@@ -99,14 +91,6 @@ Add the following **Repository Secrets** under Settings → Secrets and variable
 | `VITE_SUPABASE_URL` | Your Supabase project URL |
 | `VITE_SUPABASE_KEY` | Your Supabase anon key |
 | `VITE_GOOGLE_CLIENT_ID` | Your Google OAuth client ID |
-
----
-
-## 📋 Report Standards
-Reports are generated in accordance with Thai academic documentation standards:
-- **Identity Consistency:** First and Last names are separated into individual columns for easy sorting.
-- **Space Optimization:** Row heights are set to `100px` for headers, utilizing `textRotation: 90` for date and assignment columns.
-- **Typography:** Defaults to `TH Sarabun New`, the official standard for Thai government and academic use.
 
 ---
 
