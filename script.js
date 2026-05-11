@@ -936,27 +936,69 @@ function printQR() {
 }
 
 async function printAllQR() {
-  const room = $('f-room').value; if (!room) { showToast('กรุณาเลือกห้องเรียนก่อน', 'warn'); return; }
+  const room = $('f-room').value;
+  if (!room) { showToast('กรุณาเลือกห้องเรียนก่อน', 'warn'); return; }
   const list = students.filter(s => s.classroom === room).sort((a, b) => a.seat_no - b.seat_no);
   if (!list.length) { showToast('ไม่พบข้อมูลนักเรียน', 'error'); return; }
   showToast('กำลังสร้าง QR...', 'info');
-  const tempArea = document.createElement('div'); tempArea.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden'; document.body.appendChild(tempArea);
+
+  const tempArea = document.createElement('div');
+  tempArea.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden';
+  document.body.appendChild(tempArea);
+
   let htmlContent = '';
   for (const s of list) {
-    const qrDiv = document.createElement('div'); tempArea.appendChild(qrDiv);
-    new QRCode(qrDiv, { text: s.id, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
-    await new Promise(resolve => {
-      const img = qrDiv.querySelector('img');
-      if (!img || img.complete) { resolve(); return; }
-      img.onload = img.onerror = resolve; setTimeout(resolve, 500);
+    const qrDiv = document.createElement('div');
+    tempArea.appendChild(qrDiv);
+
+    new QRCode(qrDiv, {
+      text: s.id, width: 200, height: 200,
+      colorDark: '#000', colorLight: '#fff',
+      correctLevel: QRCode.CorrectLevel.H
     });
-    const img = qrDiv.querySelector('img');
-    htmlContent += `<div class="qr-card"><img src="${img?.src || ''}" style="width:150px;height:150px;"><div class="st-name">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</div><div class="st-id">${escapeHtml(s.id)}</div><div class="st-meta">เลขที่ ${s.seat_no} | ${escapeHtml(s.classroom)}</div></div>`;
+
+    // รอให้ render เสร็จก่อน
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // ลอง canvas ก่อน ถ้าไม่มีค่อย img
+    const canvas = qrDiv.querySelector('canvas');
+    const img    = qrDiv.querySelector('img');
+    let src = '';
+    if (canvas) {
+      src = canvas.toDataURL('image/png');
+    } else if (img && img.src) {
+      src = img.src;
+    }
+
+    htmlContent += `
+      <div class="qr-card">
+        <img src="${src}" style="width:150px;height:150px;">
+        <div class="st-name">${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</div>
+        <div class="st-id">${escapeHtml(s.id)}</div>
+        <div class="st-meta">เลขที่ ${s.seat_no} | ${escapeHtml(s.classroom)}</div>
+      </div>`;
     qrDiv.remove();
   }
+
   document.body.removeChild(tempArea);
-  const pw = window.open('', '_blank'); if (!pw) { showToast('กรุณาอนุญาต Popup', 'warn'); return; }
-  pw.document.write(`<html><head><title>QR ${escapeHtml(room)}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Kanit:wght@700&display=swap" rel="stylesheet"><style>@page{size:A4;margin:10mm}body{font-family:'Sarabun',sans-serif;margin:0;background:#fff}.grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:65mm;gap:5mm;padding:2mm}.qr-card{border:1px solid #000;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;text-align:center;break-inside:avoid}.st-name{font-size:1rem;font-weight:bold;margin-top:5px}.st-id{font-family:'Kanit';font-size:2.2rem;color:#000;line-height:1;margin:2px 0}.st-meta{font-size:.8rem;color:#333}</style></head><body onload="setTimeout(()=>{window.print();window.close()},500)"><div class="grid">${htmlContent}</div></body></html>`);
+
+  const pw = window.open('', '_blank');
+  if (!pw) { showToast('กรุณาอนุญาต Popup', 'warn'); return; }
+  pw.document.write(`<html><head><title>QR ${escapeHtml(room)}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&family=Kanit:wght@700&display=swap" rel="stylesheet">
+    <style>
+      @page{size:A4;margin:10mm}
+      body{font-family:'Sarabun',sans-serif;margin:0;background:#fff}
+      .grid{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:65mm;gap:5mm;padding:2mm}
+      .qr-card{border:1px solid #000;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;text-align:center;break-inside:avoid}
+      .st-name{font-size:1rem;font-weight:bold;margin-top:5px}
+      .st-id{font-family:'Kanit';font-size:2.2rem;color:#000;line-height:1;margin:2px 0}
+      .st-meta{font-size:.8rem;color:#333}
+    </style>
+  </head>
+  <body onload="setTimeout(()=>{window.print();window.close()},800)">
+    <div class="grid">${htmlContent}</div>
+  </body></html>`);
   pw.document.close();
 }
 
