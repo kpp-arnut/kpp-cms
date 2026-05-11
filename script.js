@@ -574,19 +574,42 @@ function markAllStatus(s) {
 async function saveGradesNow() {
   const aid = $('g-asgn').value;
   if (!aid) { showToast('กรุณาเลือกงานก่อน', 'error'); return; }
+
+  const saveBtn = document.querySelector('[onclick="saveGradesNow()"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ กำลังบันทึก...'; }
+
   const now  = new Date().toISOString();
   const rows = gradingRows.map((row, i) => {
-    const sv       = $('sc-' + i).value;
-    const rawScore = sv !== '' ? parseFloat(sv) : null;
+    const sv          = $('sc-' + i).value;
+    const rawScore    = sv !== '' ? parseFloat(sv) : null;
     const submittedAt = row.submittedAt || (rawScore !== null ? now : null);
     const { effectiveScore } = calcLateScore(rawScore, row.maxScore, row.deadline, submittedAt);
-    return { student_id: row.student.id, assignment_id: aid, score: effectiveScore, max_score: row.maxScore, status: rawScore !== null ? 'checked' : row.status, submitted_at: submittedAt };
+    return {
+      student_id:    row.student.id,
+      assignment_id: aid,
+      score:         effectiveScore,
+      max_score:     row.maxScore,
+      status:        rawScore !== null ? 'checked' : row.status,
+      submitted_at:  submittedAt
+    };
   });
+
   try {
     await gasCall('saveGrades', rows);
+
+    // อัปเดต in-memory แทนโหลดซ้ำทั้งหมด
+    rows.forEach((r, i) => {
+      gradingRows[i].score       = r.score;
+      gradingRows[i].status      = r.status;
+      gradingRows[i].submittedAt = r.submitted_at;
+    });
+
     showToast('บันทึกคะแนนสำเร็จ! 🎉', 'success');
-    await loadGrading();
-  } catch (e) { showToast('บันทึกล้มเหลว: ' + e, 'error'); }
+  } catch (e) {
+    showToast('บันทึกล้มเหลว: ' + e, 'error');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 บันทึกคะแนน'; }
+  }
 }
 
 // ─── QR SCAN ───────────────────────────────────────────────
@@ -728,13 +751,41 @@ async function saveAttendanceNow() {
   const room  = $('att-room').value;
   const hours = parseFloat($('att-hours').value) || 1;
   if (!date || !subj || !room) { showToast('กรุณาเลือกวิชา ห้อง และวันที่ให้ครบ', 'error'); return; }
+
+  const saveBtn = document.querySelector('[onclick="saveAttendanceNow()"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ กำลังบันทึก...'; }
+
   const rows = attendanceRows.map((row, i) => {
     const checked = document.querySelector(`input[name="att-status-${i}"]:checked`);
     const rem     = $('att-remark-' + i);
-    return { student_id: row.student.id, attendance_date: date, subject: subj, status: checked ? checked.value : row.status, remark: rem ? rem.value : '', hours };
+    return {
+      student_id:      row.student.id,
+      attendance_date: date,
+      subject:         subj,
+      status:          checked ? checked.value : row.status,
+      remark:          rem ? rem.value : '',
+      hours
+    };
   });
-  try { await gasCall('saveAttendance', rows); showToast('บันทึกการเข้าเรียนวิชา ' + subj + ' สำเร็จ', 'success'); }
-  catch (e) { showToast('บันทึกไม่สำเร็จ: ' + (e.message || e), 'error'); }
+
+  try {
+    await gasCall('saveAttendance', rows);
+
+    // อัปเดต in-memory แทนโหลดซ้ำทั้งหมด
+    rows.forEach(r => {
+      const idx = attendanceRows.findIndex(a => a.student.id === r.student_id);
+      if (idx !== -1) {
+        attendanceRows[idx].status = r.status;
+        attendanceRows[idx].remark = r.remark;
+      }
+    });
+
+    showToast('บันทึกการเข้าเรียนวิชา ' + subj + ' สำเร็จ', 'success');
+  } catch (e) {
+    showToast('บันทึกไม่สำเร็จ: ' + (e.message || e), 'error');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 บันทึกการเช็กชื่อ'; }
+  }
 }
 
 function setAttendanceScanMode(on) {
@@ -768,14 +819,14 @@ async function handleAttendanceScan(val) {
   const studentId = extractStudentId(val); if (!studentId) return;
   const idx = attendanceRows.findIndex(r => r.student.id === studentId);
   if (idx === -1) { showToast('ไม่พบรหัส: ' + studentId, 'error'); return; }
-  const date = $('att-date').value, status = $('att-default-status').value, subj = $('att-subj').value, hours = parseFloat($('att-hours').value) || 1;
+  const date = $('att-date').value, subj = $('att-subj').value, hours = parseFloat($('att-hours').value) || 1;
   try {
-    const result = await gasCall('markStudentAttendance', studentId, date, status, '', subj, hours);
-    const radio  = document.querySelector(`input[name="att-status-${idx}"][value="${status}"]`);
+    const result = await gasCall('markStudentAttendance', studentId, date, 'มา', '', subj, hours);
+    const radio  = document.querySelector(`input[name="att-status-${idx}"][value="มา"]`);
     if (radio) radio.checked = true;
-    updateAttendanceRowVisual(idx, status);
+    updateAttendanceRowVisual(idx, 'มา');
     const row = $('att-row-' + idx); if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    showToast(result.student.first_name + ' ' + result.student.last_name + ' = ' + status, 'success');
+    showToast(result.student.first_name + ' ' + result.student.last_name + ' = มา', 'success');
   } catch (e) { showToast('เช็กชื่อไม่สำเร็จ: ' + e, 'error'); }
 }
 
