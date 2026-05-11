@@ -246,7 +246,7 @@ function populateDropdowns() {
   ['g-room', 'att-room', 'f-room', 'bh-room', 'exp-room', 'exp-att-room'].forEach(id => {
     const el = $(id); if (!el) return;
     const cur = el.value;
-    el.innerHTML = (id === 'f-room' ? '<option value="">ทุกห้อง</option>' : '<option value="">— เลือกห้อง —</option>') +
+    el.innerHTML = (id === 'f-room' ? '<option value="">เลือกห้อง</option>' : '<option value="">— เลือกห้อง —</option>') +
       rooms.map(r => `<option value="${r}">${r}</option>`).join('');
     el.value = cur;
   });
